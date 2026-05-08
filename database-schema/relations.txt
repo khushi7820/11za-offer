@@ -1,0 +1,15 @@
+1. One Admin manages many Vendors
+
+2. One Vendor creates many Offers
+
+3. One Customer can claim many Coupons
+
+4. One Offer can generate many Coupons
+
+5. One Customer has one Wallet
+
+6. One Customer can have many Transactions
+
+7. One Vendor belongs to one Category
+
+8. One Coupon belongs to one Offer, one Vendor, and one Customer

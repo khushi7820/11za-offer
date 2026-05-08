@@ -1,0 +1,39 @@
+SAMPLE ADMIN
+admin_id: A001
+admin_name: Super Admin
+email: admin@11za.com
+
+SAMPLE VENDOR
+vendor_id: V001
+business_name: Fresh Mart
+owner_name: Rahul Shah
+mobile_number: 9876543210
+business_category: Grocery
+account_status: Active
+
+SAMPLE CUSTOMER
+customer_id: C001
+customer_name: Amit Patel
+mobile_number: 9988776655
+city: Surat
+wallet_balance: 99
+
+SAMPLE OFFER
+offer_id: O001
+vendor_id: V001
+offer_title: Flat 20% Off on Grocery above 500
+wallet_deduction_amount: 5
+offer_status: Active
+
+SAMPLE COUPON
+coupon_id: CP001
+customer_id: C001
+offer_id: O001
+coupon_code: SAVE20
+
+SAMPLE TRANSACTION
+transaction_id: T001
+customer_id: C001
+amount: 99
+transaction_type: Wallet Recharge
+payment_status: Success
