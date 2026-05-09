@@ -35,7 +35,7 @@ async function generateAIResponse(message, userName = "User") {
 
     } catch (error) {
         console.error("Groq AI Error:", error.message);
-        return "AI is currently undergoing maintenance. Please try again later. 😊";
+        return `Groq Error: ${error.message} 🛠️`;
     }
 }
 
