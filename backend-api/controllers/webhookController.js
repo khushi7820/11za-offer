@@ -87,7 +87,47 @@ exports.receiveMessage = async (req, res) => {
               return res.status(200).send("OFFERS_SENT");
           }
 
-          // 4. AI Powered Response for general chat
+          // 4. Claim Coupon Logic
+          if (lowerMessage.startsWith("claim")) {
+              const offerName = lowerMessage.replace("claim", "").trim();
+              
+              if (!offerName) {
+                  return await sendWhatsAppMessage(from, "Please specify the offer you want to claim. E.g., 'claim hair' 😊");
+              }
+
+              const { data: offer, error: findError } = await supabase
+                  .from("offers")
+                  .select("*")
+                  .ilike("offer_title", `%${offerName}%`)
+                  .limit(1)
+                  .single();
+
+              if (findError || !offer) {
+                  return await sendWhatsAppMessage(from, `Sorry, I couldn't find an offer for "${offerName}". Please check the offer list again. 😔`);
+              }
+
+              // Generate Unique Coupon
+              const couponCode = "11ZA" + Math.floor(1000 + Math.random() * 9000);
+
+              // Save Claim to DB
+              const { error: claimError } = await supabase
+                  .from("coupon_claims")
+                  .insert([{
+                      mobile_number: from,
+                      offer_id: offer.id,
+                      coupon_code: couponCode
+                  }]);
+
+              if (claimError) {
+                  console.error("Claim Error:", claimError);
+                  return await sendWhatsAppMessage(from, "Something went wrong while claiming your coupon. Please try again later. 🛠️");
+              }
+
+              const claimReply = `✅ *Coupon Claimed!*\n\n🎟 Code: *${couponCode}*\n🎁 Offer: ${offer.offer_title}\n\nShow this code to the vendor to redeem your offer. 😊`;
+              return await sendWhatsAppMessage(from, claimReply);
+          }
+
+          // 5. AI Powered Response for general chat
           const aiReply = await generateAIResponse(text, user.customer_name);
           await sendWhatsAppMessage(from, aiReply);
       }
