@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config();
+if (process.env.NODE_ENV !== 'production') {
+    require('dotenv').config();
+}
 const vendorRoutes = require('./routes/vendorRoutes');
 const customerRoutes = require('./routes/customerRoutes');
 const adminRoutes = require('./routes/adminRoutes');
@@ -8,6 +10,8 @@ const walletRoutes = require('./routes/walletRoutes');
 const webhookRoutes = require("./routes/webhookRoutes");
 
 const app = express();
+
+console.log("Starting 11za Backend in", process.env.NODE_ENV, "mode");
 
 app.use(cors());
 app.use(express.json());
