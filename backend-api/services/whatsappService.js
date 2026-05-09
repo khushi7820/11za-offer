@@ -1,39 +1,37 @@
 const axios = require("axios");
 
 /**
- * WhatsApp Message Sender for 11za-offer project
- * Uses the correct 11za.in field names: sendto, authToken, templateId
+ * WhatsApp Message Sender for 11za-offer
+ * Direct Message Implementation (No Template Required)
  */
 const sendWhatsAppMessage = async (phoneNumber, message) => {
   try {
     const authToken = process.env.WHATSAPP_TOKEN?.trim();
     const originWebsite = process.env.ORIGIN_WEBSITE?.trim();
-    const API_URL = process.env.API_URL || "https://api.11za.in/apis/template/sendTemplate";
+    
+    // Direct message endpoint
+    const API_URL = "https://api.11za.in/apis/sendMessage/sendMessages";
 
     const payload = {
       sendto: phoneNumber,
       authToken: authToken,
       originWebsite: originWebsite,
-      originWebsites: originWebsite, // 11za often expects plural too
-      templateName: "welcome_message", // Updated based on 11za error message
-      parameters: {
-          "1": message // 11za templates usually use numbered parameters
-      }
+      originWebsites: originWebsite,
+      contentType: "text",
+      text: message,
     };
 
-    console.log(`Sending Template via 11za to ${phoneNumber}...`);
+    console.log(`Sending Direct WhatsApp message to ${phoneNumber}...`);
 
     const response = await axios.post(API_URL, payload, {
       headers: {
         "Content-Type": "application/json",
-        "authToken": authToken,
-        "originWebsite": originWebsite
       }
     });
 
-    console.log("11za Response:", response.data);
+    console.log("11za Direct Send Response:", response.data);
   } catch (err) {
-    console.error("11za Send Error:", err.response?.data || err.message);
+    console.error("11za Direct Send Error:", err.response?.data || err.message);
   }
 };
 
