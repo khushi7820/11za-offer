@@ -59,21 +59,28 @@ exports.receiveMessage = async (req, res) => {
       } else {
           const lowerMessage = text.toLowerCase();
 
-          // 3. Keyword Detection for Offers (Direct Supabase Call)
+          // 3. Keyword Detection for Offers (Join with Vendors)
           if (lowerMessage.includes("offer") || lowerMessage.includes("offers")) {
               const { data: offers, error } = await supabase
                   .from("offers")
-                  .select("*")
+                  .select(`
+                      *,
+                      vendors (
+                          owner_name,
+                          business_category
+                      )
+                  `)
                   .eq("offer_status", "Active");
 
               if (error) {
+                  console.error("Fetch Error:", error);
                   await sendWhatsAppMessage(from, "Unable to fetch offers right now 😔");
               } else if (!offers || offers.length === 0) {
                   await sendWhatsAppMessage(from, "No active offers available currently 😊");
               } else {
                   let reply = "🎁 *Available Offers:*\n\n";
                   offers.forEach((offer) => {
-                      reply += `🏪 *${offer.business_name || "Vendor"}*\n🎁 ${offer.offer_title}\n💸 ${offer.discount_percentage || "Special Offer"}\n\n`;
+                      reply += `🏪 *${offer.vendors?.owner_name || "Vendor"}*\n🎁 ${offer.offer_title}\n💸 ${offer.discount_type || "Special Offer"}\n\n`;
                   });
                   await sendWhatsAppMessage(from, reply);
               }
