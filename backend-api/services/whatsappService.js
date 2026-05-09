@@ -21,8 +21,8 @@ const sendWhatsAppMessage = async (to, message) => {
       payload,
       {
         headers: {
-          "auth-token": process.env.WHATSAPP_TOKEN,
-          "origin": process.env.ORIGIN_WEBSITE,
+          "authToken": process.env.WHATSAPP_TOKEN,
+          "originWebsite": process.env.ORIGIN_WEBSITE,
           "Content-Type": "application/json"
         }
       }
