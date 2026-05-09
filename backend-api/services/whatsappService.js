@@ -15,7 +15,7 @@ const sendWhatsAppMessage = async (phoneNumber, message) => {
       authToken: authToken,
       originWebsite: originWebsite,
       originWebsites: originWebsite, // 11za often expects plural too
-      templateId: "welcome_message", // The ID from your 11za dashboard
+      templateName: "welcome_message", // Updated based on 11za error message
       parameters: {
           "1": message // 11za templates usually use numbered parameters
       }
