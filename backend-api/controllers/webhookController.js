@@ -1,6 +1,7 @@
 const { sendWhatsAppMessage } = require("../services/whatsappService");
 const { getOrCreateUser, updateUser } = require("../services/userStateService");
 const { generateAIResponse } = require("../services/aiService");
+const { getActiveOffers } = require("../services/offerService");
 
 exports.verifyWebhook = (req, res) => {
   const mode = req.query["hub.mode"];
@@ -58,7 +59,29 @@ exports.receiveMessage = async (req, res) => {
               await updateUser(from, { current_step: 'awaiting_name' });
           }
       } else {
-          // 3. AI Powered Response for Onboarded Users
+          const lowerMessage = text.toLowerCase();
+
+          // 3. Keyword Detection for Offers
+          if (
+              lowerMessage.includes("offer") || 
+              lowerMessage.includes("food") || 
+              lowerMessage.includes("fashion")
+          ) {
+              const category = lowerMessage.includes("food") ? "food" : (lowerMessage.includes("fashion") ? "fashion" : null);
+              const offers = await getActiveOffers(category);
+
+              if (offers && offers.length > 0) {
+                  let reply = "🎁 *Available Offers:*\n\n";
+                  offers.forEach((offer) => {
+                      reply += `🏪 *${offer.business_name}*\n🎁 ${offer.offer_title}\n💸 ${offer.discount_percentage || "Special Offer"}\n\n`;
+                  });
+                  return await sendWhatsAppMessage(from, reply);
+              } else {
+                  return await sendWhatsAppMessage(from, "Currently, there are no active offers in this category. Stay tuned! 😊");
+              }
+          }
+
+          // 4. AI Powered Response for general chat
           const aiReply = await generateAIResponse(text, user.customer_name);
           await sendWhatsAppMessage(from, aiReply);
       }
