@@ -19,11 +19,18 @@ app.use('/api/wallet', walletRoutes);
 app.use("/webhook", webhookRoutes);
 
 app.get('/', (req, res) => {
-    res.send('11za Backend API Running');
+    res.json({
+        status: "success",
+        message: '11za Backend API is live 🚀',
+        endpoints: ["/api/vendor", "/api/customer", "/api/admin", "/webhook"]
+    });
 });
 
-const PORT = process.env.PORT || 5000;
+if (process.env.NODE_ENV !== 'production') {
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+    });
+}
 
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+module.exports = app;
