@@ -25,7 +25,7 @@ async function generateAIResponse(message, userName = "User") {
                     content: message
                 }
             ],
-            model: "llama3-8b-8192",
+            model: "llama-3.3-70b-versatile",
             max_tokens: 100
         });
 
@@ -35,7 +35,7 @@ async function generateAIResponse(message, userName = "User") {
 
     } catch (error) {
         console.error("Groq AI Error:", error.message);
-        return `Groq Error: ${error.message} 🛠️`;
+        return "I'm having a bit of trouble thinking right now. How can I help you today? 😊";
     }
 }
 
