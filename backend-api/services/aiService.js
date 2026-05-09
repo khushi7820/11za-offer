@@ -1,36 +1,31 @@
-const axios = require("axios");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 /**
- * Generate AI Response using Gemini (Direct V1 API Call)
+ * Generate AI Response using Gemini (Model: gemini-1.5-flash-001)
  */
 async function generateAIResponse(message, userName = "User") {
     try {
-        const apiKey = process.env.GEMINI_API_KEY;
-        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${apiKey}`;
-
-        console.log(`Calling Gemini V1 API for ${userName}...`);
-
-        const payload = {
-            contents: [{
-                parts: [{
-                    text: `You are a helpful assistant for 11za offers. User name: ${userName}. User says: ${message}. Keep it very short and use emojis.`
-                }]
-            }]
-        };
-
-        const response = await axios.post(url, payload, {
-            headers: {
-                "Content-Type": "application/json"
-            }
+        console.log(`Generating AI response for ${userName} using gemini-1.5-flash-001...`);
+        
+        const model = genAI.getGenerativeModel({
+            model: "gemini-1.5-flash-001"
         });
 
-        const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-        console.log("Gemini V1 Reply:", text);
-        return text;
+        const prompt = `You are a helpful assistant for 11za, a platform for exclusive offers. 
+        User name: ${userName}. 
+        User message: ${message}. 
+        Keep response very short and use emojis.`;
+
+        const result = await model.generateContent(prompt);
+        const response = result.response.text();
+
+        console.log("AI Generated Reply:", response);
+        return response;
     } catch (error) {
-        const errorDetail = error.response?.data || error.message;
-        console.error("FULL GEMINI ERROR:", JSON.stringify(errorDetail, null, 2));
-        return `Gemini V1 Error: ${JSON.stringify(errorDetail)} 🛠️`;
+        console.error("Gemini V1 Error:", JSON.stringify(error, null, 2));
+        return "AI temporarily unavailable. 🛠️";
     }
 }
 
