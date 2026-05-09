@@ -334,7 +334,7 @@ exports.verifyCoupon = async (req, res) => {
 
         // 3. Record transaction for vendor activity and stats
         const wallet_deduction = coupon.offers ? coupon.offers.wallet_deduction_amount : 0;
-        
+
         const { error: transError } = await supabase
             .from('transactions')
             .insert([
@@ -492,5 +492,5 @@ exports.getVendorActivity = async (req, res) => {
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
-};
-
+
+}

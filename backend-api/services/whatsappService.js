@@ -1,6 +1,7 @@
 const axios = require("axios");
 
 const sendWhatsAppMessage = async (to, message) => {
+  try {
     console.log(`Sending WhatsApp message to ${to}...`);
     
     const payload = {
