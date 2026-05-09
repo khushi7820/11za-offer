@@ -1,39 +1,27 @@
-const Groq = require("groq-sdk");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 /**
- * Generate AI Response using Groq (Llama 3)
+ * Generate AI Response using Gemini (Latest SDK implementation)
  */
-const generateAIResponse = async (userMessage, userName = "User") => {
+async function generateAIResponse(message, userName = "User") {
     try {
-        console.log(`Generating Groq AI response for ${userName}...`);
-        
-        const chatCompletion = await groq.chat.completions.create({
-            messages: [
-                {
-                    role: "system",
-                    content: `You are a helpful assistant for 11za, a platform for exclusive offers.
-                    The user's name is: ${userName}.
-                    Keep your response friendly, professional, and very short (max 2 sentences).
-                    Use emojis.`
-                },
-                {
-                    role: "user",
-                    content: userMessage
-                }
-            ],
-            model: "llama3-8b-8192",
-            max_tokens: 100
+        const model = genAI.getGenerativeModel({
+            model: "gemini-1.5-flash"
         });
 
-        const text = chatCompletion.choices[0]?.message?.content || "";
-        console.log("Groq AI Reply:", text);
-        return text;
+        // Adding a bit of context for 11za
+        const prompt = `User name: ${userName}. User says: ${message}. Keep it short and use emojis. Context: You are an assistant for 11za offers platform.`;
+
+        const result = await model.generateContent(prompt);
+        const response = result.response.text();
+
+        return response;
     } catch (error) {
-        console.error("Groq AI Error:", error.message);
-        return `Groq Error: ${error.message} 🛠️`;
+        console.log("Gemini New Error:", error);
+        return "I'm having a bit of trouble thinking right now. How can I help you today? 😊";
     }
-};
+}
 
 module.exports = { generateAIResponse };
