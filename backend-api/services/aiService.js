@@ -6,7 +6,7 @@ const axios = require("axios");
 async function generateAIResponse(message, userName = "User") {
     try {
         const apiKey = process.env.GEMINI_API_KEY;
-        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${apiKey}`;
 
         console.log(`Calling Gemini V1 API for ${userName}...`);
 
