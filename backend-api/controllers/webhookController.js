@@ -48,10 +48,13 @@ exports.receiveMessage = async (req, res) => {
                   onboarding_completed: true,
                   current_step: 'completed'
               });
-              await sendWhatsAppMessage(from, `Nice to meet you ${name}! 😊 Welcome to 11za. How can I help you today?`);
+              
+              const welcomeMsg = `Nice to meet you ${name}! 😊\n\nI can help you with:\n🎁 Offers\n🏪 Nearby vendors\n🎟 Coupons\n💰 Wallet rewards\n\nHow can I help you today?`;
+              await sendWhatsAppMessage(from, welcomeMsg);
           } else {
               // Ask for name
-              await sendWhatsAppMessage(from, "Welcome to 11za! 🎉 Before we continue, please tell me your name.");
+              const askNameMsg = "Hey 👋\nWelcome to 11za!\n\nBefore we continue, may I know your name? 😊";
+              await sendWhatsAppMessage(from, askNameMsg);
               await updateUser(from, { current_step: 'awaiting_name' });
           }
       } else {
