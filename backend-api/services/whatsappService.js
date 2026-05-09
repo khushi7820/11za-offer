@@ -16,18 +16,21 @@ const sendWhatsAppMessage = async (to, message) => {
       ]
     };
 
+    const token = process.env.WHATSAPP_TOKEN?.trim();
+    const origin = process.env.ORIGIN_WEBSITE?.trim();
+
     console.log("Diagnostic - API URL:", process.env.API_URL);
-    console.log("Diagnostic - Origin:", process.env.ORIGIN_WEBSITE);
+    console.log("Diagnostic - Origin (Trimmed):", origin);
 
     const response = await axios.post(
       process.env.API_URL,
       payload,
       {
         headers: {
-          "authToken": process.env.WHATSAPP_TOKEN,
-          "auth-token": process.env.WHATSAPP_TOKEN, // Try both formats
-          "originWebsite": process.env.ORIGIN_WEBSITE,
-          "origin": process.env.ORIGIN_WEBSITE, // Try both formats
+          "authToken": token,
+          "auth-token": token,
+          "originWebsite": origin,
+          "origin": origin,
           "Content-Type": "application/json"
         }
       }
