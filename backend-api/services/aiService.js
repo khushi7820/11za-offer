@@ -1,41 +1,41 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const Groq = require("groq-sdk");
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Use GROQ_API_KEY from environment variables
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 /**
- * Generate AI Response using Gemini 2.0 Flash
+ * Generate AI Response using Groq (Llama 3)
+ * Much faster and more stable than Gemini
  */
 async function generateAIResponse(message, userName = "User") {
     try {
-        console.log(`Generating AI response for ${userName} using gemini-2.0-flash...`);
+        console.log(`Generating Groq AI response for ${userName}...`);
         
-        const model = genAI.getGenerativeModel({
-            model: "gemini-2.0-flash"
+        const chatCompletion = await groq.chat.completions.create({
+            messages: [
+                {
+                    role: "system",
+                    content: `You are 11za AI Assistant.
+                    Platform: 11za is an offers and coupon platform.
+                    Reply short with emojis.
+                    User Name: ${userName}`
+                },
+                {
+                    role: "user",
+                    content: message
+                }
+            ],
+            model: "llama3-8b-8192",
+            max_tokens: 100
         });
 
-        const prompt = `
-You are 11za AI Assistant.
-Platform:
-- 11za is an offers and coupon platform.
-- Help users politely.
-- Keep replies short.
-- Use emojis.
-- Do not generate long paragraphs.
-
-User Name: ${userName}
-User Message: ${message}
-`;
-
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
-
-        console.log("AI Reply:", text);
+        const text = chatCompletion.choices[0]?.message?.content || "";
+        console.log("Groq AI Reply:", text);
         return text;
 
     } catch (error) {
-        console.error("FULL GEMINI ERROR:", JSON.stringify(error, null, 2));
-        return `Gemini 2.0 Error: ${error.message || JSON.stringify(error)} 🛠️`;
+        console.error("Groq AI Error:", error.message);
+        return "AI is currently undergoing maintenance. Please try again later. 😊";
     }
 }
 
