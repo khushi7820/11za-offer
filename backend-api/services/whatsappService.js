@@ -16,13 +16,18 @@ const sendWhatsAppMessage = async (to, message) => {
       ]
     };
 
+    console.log("Diagnostic - API URL:", process.env.API_URL);
+    console.log("Diagnostic - Origin:", process.env.ORIGIN_WEBSITE);
+
     const response = await axios.post(
       process.env.API_URL,
       payload,
       {
         headers: {
           "authToken": process.env.WHATSAPP_TOKEN,
+          "auth-token": process.env.WHATSAPP_TOKEN, // Try both formats
           "originWebsite": process.env.ORIGIN_WEBSITE,
+          "origin": process.env.ORIGIN_WEBSITE, // Try both formats
           "Content-Type": "application/json"
         }
       }
