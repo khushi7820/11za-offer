@@ -35,7 +35,7 @@ User Message: ${message}
 
     } catch (error) {
         console.error("FULL GEMINI ERROR:", JSON.stringify(error, null, 2));
-        return "AI temporarily unavailable. 🛠️";
+        return `Gemini 2.0 Error: ${error.message || JSON.stringify(error)} 🛠️`;
     }
 }
 
