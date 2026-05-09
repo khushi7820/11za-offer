@@ -19,8 +19,21 @@ const sendWhatsAppMessage = async (to, message) => {
     const token = process.env.WHATSAPP_TOKEN?.trim();
     const origin = process.env.ORIGIN_WEBSITE?.trim();
 
-    console.log("Diagnostic - API URL:", process.env.API_URL);
-    console.log("Diagnostic - Origin (Trimmed):", origin);
+    const payload = {
+      authToken: token,
+      originWebsite: origin,
+      to: to,
+      template_name: "welcome_message", 
+      language: "en",
+      components: [
+        {
+          type: "body",
+          parameters: [{ type: "text", text: message }]
+        }
+      ]
+    };
+
+    console.log("Diagnostic - Sending Payload with Credentials in Body");
 
     const response = await axios.post(
       process.env.API_URL,
@@ -28,9 +41,7 @@ const sendWhatsAppMessage = async (to, message) => {
       {
         headers: {
           "authToken": token,
-          "auth-token": token,
           "originWebsite": origin,
-          "origin": origin,
           "Content-Type": "application/json"
         }
       }
