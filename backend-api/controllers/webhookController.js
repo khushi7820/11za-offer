@@ -106,6 +106,19 @@ exports.receiveMessage = async (req, res) => {
                   return await sendWhatsAppMessage(from, `Sorry, I couldn't find an offer for "${offerName}". Please check the offer list again. 😔`);
               }
 
+              // 4a. Duplicate Claim Prevention Check
+              const { data: existingClaim, error: checkError } = await supabase
+                  .from("coupon_claims")
+                  .select("*")
+                  .eq("mobile_number", from)
+                  .eq("offer_id", offer.id)
+                  .maybeSingle();
+
+              if (existingClaim) {
+                  const alreadyClaimedMsg = `⚠️ *You already claimed this offer!* 😊\n\n🎟 Coupon Code: *${existingClaim.coupon_code}*\n🎁 Offer: ${offer.offer_title}\n\nYou can use this code at the vendor.`;
+                  return await sendWhatsAppMessage(from, alreadyClaimedMsg);
+              }
+
               // Generate Unique Coupon
               const couponCode = "11ZA" + Math.floor(1000 + Math.random() * 9000);
 
