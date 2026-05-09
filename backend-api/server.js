@@ -1,28 +1,28 @@
 const express = require('express');
 const cors = require('cors');
 
-// Test if jsonwebtoken (authMiddleware) is the one crashing
-try {
-    console.log("Attempting to load jsonwebtoken...");
-    const jwt = require("jsonwebtoken");
-    console.log("jsonwebtoken loaded successfully ✅");
-    
-    console.log("Attempting to load authMiddleware...");
-    const authMiddleware = require('./middleware/authMiddleware');
-    console.log("authMiddleware loaded successfully ✅");
-} catch (err) {
-    console.error("CRITICAL: Auth dependencies failed!", err.message);
-}
-
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 app.get('/', (req, res) => {
-    res.json({
-        status: "success",
-        message: 'Auth Middleware Import Test Running'
-    });
+    try {
+        console.log("Attempting to load vendorController...");
+        const vendorController = require('./controllers/vendorController');
+        res.json({
+            status: "success",
+            message: "vendorController loaded successfully! ✅",
+            exported_methods: Object.keys(vendorController)
+        });
+    } catch (err) {
+        console.error("LOAD ERROR:", err);
+        res.status(500).json({
+            status: "error",
+            message: "Failed to load vendorController",
+            error: err.message,
+            stack: err.stack
+        });
+    }
 });
 
 module.exports = app;
