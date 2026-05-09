@@ -1,22 +1,23 @@
 const axios = require("axios");
 
 const sendWhatsAppMessage = async (to, message) => {
-  try {
-    await axios.post(
+    console.log(`Sending WhatsApp message to ${to}...`);
+    
+    const payload = {
+      to: to,
+      template_name: "welcome_message", // Ensure this exists in 11za dashboard
+      language: "en",
+      components: [
+        {
+          type: "body",
+          parameters: [{ type: "text", text: message }]
+        }
+      ]
+    };
+
+    const response = await axios.post(
       process.env.API_URL,
-      {
-        to,
-        // Note: 11za.in usually requires a template name and components
-        // For now, I'm setting a generic structure. We may need to adjust this.
-        template_name: "welcome_message", 
-        language: "en",
-        components: [
-          {
-            type: "body",
-            parameters: [{ type: "text", text: message }]
-          }
-        ]
-      },
+      payload,
       {
         headers: {
           "auth-token": process.env.WHATSAPP_TOKEN,
@@ -25,9 +26,9 @@ const sendWhatsAppMessage = async (to, message) => {
         }
       }
     );
-    console.log("WhatsApp message sent successfully");
+    console.log("WhatsApp message sent successfully:", response.data);
   } catch (err) {
-    console.log("WhatsApp Send Error:", err.response?.data || err.message);
+    console.error("WhatsApp Send Error:", err.response?.data || err.message);
   }
 };
 
