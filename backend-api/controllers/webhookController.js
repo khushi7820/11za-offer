@@ -23,15 +23,17 @@ exports.receiveMessage = async (req, res) => {
     // CRITICAL: Log the body to see exactly what 11za sends
     console.log("Received Webhook Payload:", JSON.stringify(req.body, null, 2));
 
-    // Support for both Meta and generic structures (like 11za)
+    // Support for 11za.in, Meta, and others
     const entry = req.body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+    
+    // 11za specific fields
     const from = entry?.from || req.body?.from || req.body?.sender;
-    const text = entry?.text?.body || req.body?.text || req.body?.message;
+    const text = entry?.text?.body || req.body?.content?.text || req.body?.UserResponse || req.body?.text || req.body?.message;
 
     if (from && text) {
-      console.log("Processing message from:", from, "Content:", text);
+      console.log("Parsed Message -> From:", from, "| Text:", text);
 
-      // Simple echo response for testing
+      // Response logic
       await sendWhatsAppMessage(
         from,
         `Welcome to 11za! We received your message: "${text}"`
