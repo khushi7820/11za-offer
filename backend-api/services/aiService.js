@@ -25,7 +25,7 @@ async function generateAIResponse(message, userName = "User") {
         return response;
     } catch (error) {
         console.error("Gemini V1 Error:", JSON.stringify(error, null, 2));
-        return "I'm having a bit of trouble thinking right now. How can I help you today? 😊";
+        return `Gemini New Key Error: ${error.message || JSON.stringify(error)} 🛠️`;
     }
 }
 
