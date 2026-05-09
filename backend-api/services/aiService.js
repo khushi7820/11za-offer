@@ -18,7 +18,7 @@ const generateAIResponse = async (userMessage, userName = "User") => {
         Use emojis.`;
 
         const result = await model.generateContent(prompt);
-        const response = result.response;
+        const response = await result.response;
         const text = response.text();
         
         console.log("AI Generated Reply:", text);
