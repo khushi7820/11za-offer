@@ -22,7 +22,18 @@ app.get('/', (req, res) => {
     res.json({
         status: "success",
         message: '11za Backend API is live 🚀',
+        env: process.env.NODE_ENV,
         endpoints: ["/api/vendor", "/api/customer", "/api/admin", "/webhook"]
+    });
+});
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+    console.error("Global Error Handler:", err.stack);
+    res.status(500).json({
+        success: false,
+        message: "Internal Server Error",
+        error: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
 });
 
