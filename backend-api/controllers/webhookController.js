@@ -1,7 +1,7 @@
 const { sendWhatsAppMessage } = require("../services/whatsappService");
 const { getOrCreateUser, updateUser } = require("../services/userStateService");
 const { generateAIResponse } = require("../services/aiService");
-const { getActiveOffers } = require("../services/offerService");
+const supabase = require("../config/supabaseClient");
 
 exports.verifyWebhook = (req, res) => {
   const mode = req.query["hub.mode"];
@@ -42,7 +42,6 @@ exports.receiveMessage = async (req, res) => {
       // 2. Onboarding Logic
       if (!user.onboarding_completed) {
           if (user.current_step === 'awaiting_name') {
-              // Save the name
               const name = text.trim();
               await updateUser(from, { 
                   customer_name: name, 
@@ -53,7 +52,6 @@ exports.receiveMessage = async (req, res) => {
               const welcomeMsg = `Nice to meet you ${name}! 😊\n\nI can help you with:\n🎁 Offers\n🏪 Nearby vendors\n🎟 Coupons\n💰 Wallet rewards\n\nHow can I help you today?`;
               await sendWhatsAppMessage(from, welcomeMsg);
           } else {
-              // Ask for name
               const askNameMsg = "Hey 👋\nWelcome to 11za!\n\nBefore we continue, may I know your name? 😊";
               await sendWhatsAppMessage(from, askNameMsg);
               await updateUser(from, { current_step: 'awaiting_name' });
@@ -61,24 +59,25 @@ exports.receiveMessage = async (req, res) => {
       } else {
           const lowerMessage = text.toLowerCase();
 
-          // 3. Keyword Detection for Offers
-          if (
-              lowerMessage.includes("offer") || 
-              lowerMessage.includes("food") || 
-              lowerMessage.includes("fashion")
-          ) {
-              const category = lowerMessage.includes("food") ? "food" : (lowerMessage.includes("fashion") ? "fashion" : null);
-              const offers = await getActiveOffers(category);
+          // 3. Keyword Detection for Offers (Direct Supabase Call)
+          if (lowerMessage.includes("offer") || lowerMessage.includes("offers")) {
+              const { data: offers, error } = await supabase
+                  .from("offers")
+                  .select("*")
+                  .eq("offer_status", "Active");
 
-              if (offers && offers.length > 0) {
+              if (error) {
+                  await sendWhatsAppMessage(from, "Unable to fetch offers right now 😔");
+              } else if (!offers || offers.length === 0) {
+                  await sendWhatsAppMessage(from, "No active offers available currently 😊");
+              } else {
                   let reply = "🎁 *Available Offers:*\n\n";
                   offers.forEach((offer) => {
-                      reply += `🏪 *${offer.business_name}*\n🎁 ${offer.offer_title}\n💸 ${offer.discount_percentage || "Special Offer"}\n\n`;
+                      reply += `🏪 *${offer.business_name || "Vendor"}*\n🎁 ${offer.offer_title}\n💸 ${offer.discount_percentage || "Special Offer"}\n\n`;
                   });
-                  return await sendWhatsAppMessage(from, reply);
-              } else {
-                  return await sendWhatsAppMessage(from, "Currently, there are no active offers in this category. Stay tuned! 😊");
+                  await sendWhatsAppMessage(from, reply);
               }
+              return res.status(200).send("OFFERS_SENT");
           }
 
           // 4. AI Powered Response for general chat
