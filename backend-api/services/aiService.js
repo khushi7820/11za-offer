@@ -1,25 +1,34 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const axios = require("axios");
 
 /**
- * Generate AI Response using Gemini (Latest SDK implementation)
+ * Generate AI Response using Gemini (Direct V1 API Call)
  */
 async function generateAIResponse(message, userName = "User") {
     try {
-        const model = genAI.getGenerativeModel({
-            model: "gemini-1.5-flash"
+        const apiKey = process.env.GEMINI_API_KEY;
+        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+
+        console.log(`Calling Gemini V1 API for ${userName}...`);
+
+        const payload = {
+            contents: [{
+                parts: [{
+                    text: `You are a helpful assistant for 11za offers. User name: ${userName}. User says: ${message}. Keep it very short and use emojis.`
+                }]
+            }]
+        };
+
+        const response = await axios.post(url, payload, {
+            headers: {
+                "Content-Type": "application/json"
+            }
         });
 
-        // Adding a bit of context for 11za
-        const prompt = `User name: ${userName}. User says: ${message}. Keep it short and use emojis. Context: You are an assistant for 11za offers platform.`;
-
-        const result = await model.generateContent(prompt);
-        const response = result.response.text();
-
-        return response;
+        const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        console.log("Gemini V1 Reply:", text);
+        return text;
     } catch (error) {
-        console.log("Gemini New Error:", error);
+        console.error("Gemini V1 Error:", error.response?.data || error.message);
         return "I'm having a bit of trouble thinking right now. How can I help you today? 😊";
     }
 }
