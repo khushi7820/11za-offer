@@ -10,7 +10,7 @@ async function generateAIResponse(message, userName = "User") {
         console.log(`Generating AI response for ${userName} using gemini-1.5-flash-001...`);
         
         const model = genAI.getGenerativeModel({
-            model: "gemini-1.5-flash-001"
+            model: "gemini-1.5-flash"
         });
 
         const prompt = `You are a helpful assistant for 11za, a platform for exclusive offers. 
