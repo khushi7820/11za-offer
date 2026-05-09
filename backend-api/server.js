@@ -1,20 +1,23 @@
 const express = require('express');
 const cors = require('cors');
 
-// Add vendor routes only to test
-const vendorRoutes = require('./routes/vendorRoutes');
+// Test if bcryptjs is the one crashing
+try {
+    console.log("Attempting to load bcryptjs...");
+    const bcrypt = require('bcryptjs');
+    console.log("bcryptjs loaded successfully ✅");
+} catch (err) {
+    console.error("CRITICAL: bcryptjs failed to load!", err.message);
+}
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.use('/api/vendor', vendorRoutes);
-
 app.get('/', (req, res) => {
     res.json({
         status: "success",
-        message: 'Vendor Routes Test Running',
-        endpoints: ["/api/vendor"]
+        message: 'bcryptjs Import Test Running'
     });
 });
 
