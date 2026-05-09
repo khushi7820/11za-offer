@@ -28,6 +28,13 @@ exports.receiveMessage = async (req, res) => {
     if (from && text) {
       console.log(`Processing message from ${from}: ${text}`);
 
+      // 0. Reset Command for Testing
+      if (text.toLowerCase() === 'reset') {
+          await updateUser(from, { onboarding_completed: false, current_step: 'start', customer_name: null });
+          await sendWhatsAppMessage(from, "Your state has been reset! Send 'hi' to start onboarding again. 🔄");
+          return res.status(200).send("RESET_DONE");
+      }
+
       // 1. Get/Create User from DB
       const user = await getOrCreateUser(from);
 
