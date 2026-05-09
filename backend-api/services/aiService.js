@@ -25,7 +25,7 @@ const generateAIResponse = async (userMessage, userName = "User") => {
         return text;
     } catch (error) {
         console.error("Gemini AI Error:", error.message);
-        return "I'm having a bit of trouble thinking right now. How can I help you today? 😊";
+        return `Gemini New Error: ${error.message} 🛠️`;
     }
 };
 
