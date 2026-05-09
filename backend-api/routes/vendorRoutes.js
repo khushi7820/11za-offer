@@ -12,6 +12,7 @@ router.post('/create-offer', authMiddleware, vendorController.createOffer);
 router.get('/my-offers/:vendor_id', authMiddleware, vendorController.getVendorOffers);
 router.get('/dashboard-stats/:vendor_id', authMiddleware, vendorController.dashboardStats);
 router.post('/verify-coupon', authMiddleware, vendorController.verifyCoupon);
+router.post('/redeem-coupon', authMiddleware, vendorController.redeemWhatsAppCoupon);
 router.delete('/delete-offer/:id', authMiddleware, vendorController.deleteOffer);
 router.put('/update-offer/:id', authMiddleware, vendorController.updateOffer);
 router.get('/activity/:vendor_id', authMiddleware, vendorController.getVendorActivity);

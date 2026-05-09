@@ -492,5 +492,50 @@ exports.getVendorActivity = async (req, res) => {
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
+};
 
-}
+// Redeem Coupon claimed via WhatsApp
+exports.redeemWhatsAppCoupon = async (req, res) => {
+    try {
+        const { coupon_code } = req.body;
+
+        if (!coupon_code) {
+            return res.status(400).json({ success: false, message: "Coupon code is required" });
+        }
+
+        // 1. Verify Coupon in coupon_claims table
+        const { data: coupon, error } = await supabase
+            .from("coupon_claims")
+            .select("*")
+            .eq("coupon_code", coupon_code)
+            .maybeSingle();
+
+        if (error || !coupon) {
+            return res.status(404).json({ success: false, message: "Invalid Coupon Code ❌" });
+        }
+
+        // 2. Check if already redeemed
+        if (coupon.redeemed) {
+            return res.status(400).json({ success: false, message: "Coupon already redeemed ⚠️" });
+        }
+
+        // 3. Mark as Redeemed
+        const { error: updateError } = await supabase
+            .from("coupon_claims")
+            .update({
+                redeemed: true,
+                redeemed_at: new Date().toISOString()
+            })
+            .eq("coupon_code", coupon_code);
+
+        if (updateError) throw updateError;
+
+        res.json({
+            success: true,
+            message: "Coupon Redeemed Successfully ✅"
+        });
+
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
