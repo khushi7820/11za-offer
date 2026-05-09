@@ -35,4 +35,4 @@ const sendWhatsAppMessage = async (phoneNumber, message) => {
   }
 };
 
-module.exports = sendWhatsAppMessage;
+module.exports = { sendWhatsAppMessage };
