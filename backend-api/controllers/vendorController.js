@@ -492,4 +492,5 @@ exports.getVendorActivity = async (req, res) => {
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
+};
 

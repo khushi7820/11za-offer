@@ -1,28 +1,56 @@
 const express = require('express');
 const cors = require('cors');
 
+// Environment check for local development
+if (process.env.NODE_ENV !== 'production') {
+    require('dotenv').config();
+}
+
+const vendorRoutes = require('./routes/vendorRoutes');
+const customerRoutes = require('./routes/customerRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+const walletRoutes = require('./routes/walletRoutes');
+const webhookRoutes = require("./routes/webhookRoutes");
+
 const app = express();
+
+console.log("Starting 11za Backend in", process.env.NODE_ENV || 'development', "mode");
+
 app.use(cors());
 app.use(express.json());
 
+// Routes
+app.use('/api/vendor', vendorRoutes);
+app.use('/api/customer', customerRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/wallet', walletRoutes);
+app.use("/webhook", webhookRoutes);
+
 app.get('/', (req, res) => {
-    try {
-        console.log("Attempting to load vendorController...");
-        const vendorController = require('./controllers/vendorController');
-        res.json({
-            status: "success",
-            message: "vendorController loaded successfully! ✅",
-            exported_methods: Object.keys(vendorController)
-        });
-    } catch (err) {
-        console.error("LOAD ERROR:", err);
-        res.status(500).json({
-            status: "error",
-            message: "Failed to load vendorController",
-            error: err.message,
-            stack: err.stack
-        });
-    }
+    res.json({
+        status: "success",
+        message: '11za Backend API is live 🚀',
+        env: process.env.NODE_ENV || 'development',
+        endpoints: ["/api/vendor", "/api/customer", "/api/admin", "/webhook"]
+    });
 });
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+    console.error("Global Error Handler:", err.stack);
+    res.status(500).json({
+        success: false,
+        message: "Internal Server Error",
+        error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+});
+
+// Port handling for local
+if (process.env.NODE_ENV !== 'production') {
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+    });
+}
 
 module.exports = app;
