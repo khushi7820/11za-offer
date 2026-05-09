@@ -28,8 +28,9 @@ async function generateAIResponse(message, userName = "User") {
         console.log("Gemini V1 Reply:", text);
         return text;
     } catch (error) {
-        console.error("Gemini V1 Error:", error.response?.data || error.message);
-        return "I'm having a bit of trouble thinking right now. How can I help you today? 😊";
+        const errorDetail = error.response?.data || error.message;
+        console.error("FULL GEMINI ERROR:", JSON.stringify(errorDetail, null, 2));
+        return `Gemini V1 Error: ${JSON.stringify(errorDetail)} 🛠️`;
     }
 }
 
