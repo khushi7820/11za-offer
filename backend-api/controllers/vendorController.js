@@ -311,81 +311,104 @@ exports.verifyCoupon = async (req, res) => {
         const { coupon_code, vendor_id } = req.body;
 
         if (!coupon_code || !vendor_id) {
-            return res.status(400).json({
-                success: false,
-                message: 'Coupon code and Vendor ID are required'
-            });
+            return res.status(400).json({ success: false, message: 'Coupon code and Vendor ID are required' });
         }
 
-        // 1. Fetch coupon and associated offer details
-        const { data: coupon, error: fetchError } = await supabase
+        // --- STEP 1: Try finding in traditional 'coupons' table ---
+        const { data: traditionalCoupon } = await supabase
             .from('coupons')
             .select('*, offers(*)')
             .eq('coupon_code', coupon_code)
             .eq('vendor_id', vendor_id)
+            .maybeSingle();
+
+        if (traditionalCoupon) {
+            if (traditionalCoupon.coupon_status === 'Used') {
+                return res.status(400).json({ success: false, message: 'Coupon Already Used' });
+            }
+
+            const { error: updateError } = await supabase
+                .from('coupons')
+                .update({
+                    coupon_status: 'Used',
+                    redeem_date: new Date().toISOString()
+                })
+                .eq('coupon_code', coupon_code);
+
+            if (updateError) throw updateError;
+
+            return res.json({ success: true, message: 'Traditional Coupon Redeemed Successfully ✅' });
+        }
+
+        // --- STEP 2: Fallback to 'coupon_claims' (WhatsApp Flow) ---
+        const { data: claim, error: claimError } = await supabase
+            .from("coupon_claims")
+            .select(`
+                *,
+                offers (
+                    id,
+                    vendor_id,
+                    offer_title,
+                    wallet_deduction_amount
+                )
+            `)
+            .eq("coupon_code", coupon_code)
+            .maybeSingle();
+
+        if (claimError || !claim) {
+            return res.status(404).json({ success: false, message: 'Invalid Coupon Code ❌' });
+        }
+
+        // Check if this coupon belongs to THIS vendor
+        if (claim.offers?.vendor_id !== vendor_id) {
+            return res.status(403).json({ success: false, message: 'This coupon belongs to another vendor 🚫' });
+        }
+
+        if (claim.redeemed) {
+            return res.status(400).json({ success: false, message: 'Coupon already redeemed ⚠️' });
+        }
+
+        // Get customer_id for transaction
+        const { data: user } = await supabase
+            .from("whatsapp_users")
+            .select("customer_id")
+            .eq("phone_number", claim.mobile_number)
             .single();
 
-        if (fetchError || !coupon) {
-            return res.status(404).json({
-                success: false,
-                message: 'Invalid Coupon Code or not authorized for this vendor'
-            });
-        }
-
-        if (coupon.coupon_status === 'Used') {
-            return res.status(400).json({
-                success: false,
-                message: 'Coupon Already Used'
-            });
-        }
-
-        // 2. Mark coupon as used
+        // Mark as Redeemed
         const { error: updateError } = await supabase
-            .from('coupons')
+            .from("coupon_claims")
             .update({
-                coupon_status: 'Used',
-                redeem_date: new Date().toISOString()
+                redeemed: true,
+                redeemed_at: new Date().toISOString()
             })
-            .eq('coupon_code', coupon_code);
+            .eq("coupon_code", coupon_code);
 
-        if (updateError) {
-            throw updateError;
-        }
+        if (updateError) throw updateError;
 
-        // 3. Record transaction for vendor activity and stats
-        const wallet_deduction = coupon.offers ? coupon.offers.wallet_deduction_amount : 0;
+        // Record Transaction
+        const deduction = claim.offers?.wallet_deduction_amount || 0;
+        await supabase
+            .from("transactions")
+            .insert([{
+                vendor_id: vendor_id,
+                customer_id: user?.customer_id || null,
+                offer_id: claim.offer_id,
+                coupon_code: coupon_code,
+                amount: deduction,
+                wallet_used: deduction,
+                transaction_type: 'Redemption',
+                transaction_status: 'Completed',
+                transaction_date: new Date().toISOString()
+            }]);
 
-        const { error: transError } = await supabase
-            .from('transactions')
-            .insert([
-                {
-                    vendor_id,
-                    customer_id: coupon.customer_id,
-                    coupon_id: coupon.id,
-                    amount: wallet_deduction,
-                    wallet_used: wallet_deduction,
-                    transaction_type: 'Redemption',
-                    description: `Redeemed coupon ${coupon_code} for "${coupon.offers?.offer_title || 'Offer'}"`,
-                    transaction_date: new Date().toISOString()
-                }
-            ]);
-
-        if (transError) {
-            console.error("Transaction Error:", transError);
-            // We don't necessarily want to fail the whole request if transaction log fails, 
-            // but it's better to keep data consistent.
-        }
-
-        res.json({
+        return res.json({
             success: true,
-            message: 'Coupon Verified & Redeemed Successfully'
+            message: `Coupon Redeemed: ${claim.offers?.offer_title} ✅`
         });
 
     } catch (err) {
-        res.status(500).json({
-            success: false,
-            message: err.message
-        });
+        res.status(500).json({ success: false, message: err.message });
     }
 };
 
