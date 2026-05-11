@@ -503,29 +503,43 @@ exports.getVendorActivity = async (req, res) => {
 // Redeem Coupon claimed via WhatsApp
 exports.redeemWhatsAppCoupon = async (req, res) => {
     try {
-        const { coupon_code } = req.body;
+        const { coupon_code, vendor_id } = req.body;
 
-        if (!coupon_code) {
-            return res.status(400).json({ success: false, message: "Coupon code is required" });
+        if (!coupon_code || !vendor_id) {
+            return res.status(400).json({ success: false, message: "Coupon code and Vendor ID are required" });
         }
 
         // 1. Verify Coupon in coupon_claims table
-        const { data: coupon, error } = await supabase
+        const { data: claim, error } = await supabase
             .from("coupon_claims")
-            .select("*")
+            .select(`
+                *,
+                offers (
+                    id,
+                    offer_title,
+                    wallet_deduction_amount
+                )
+            `)
             .eq("coupon_code", coupon_code)
             .maybeSingle();
 
-        if (error || !coupon) {
+        if (error || !claim) {
             return res.status(404).json({ success: false, message: "Invalid Coupon Code ❌" });
         }
 
         // 2. Check if already redeemed
-        if (coupon.redeemed) {
+        if (claim.redeemed) {
             return res.status(400).json({ success: false, message: "Coupon already redeemed ⚠️" });
         }
 
-        // 3. Mark as Redeemed
+        // 3. Get Customer details from whatsapp_users
+        const { data: user } = await supabase
+            .from("whatsapp_users")
+            .select("customer_id")
+            .eq("phone_number", claim.mobile_number)
+            .single();
+
+        // 4. Mark as Redeemed
         const { error: updateError } = await supabase
             .from("coupon_claims")
             .update({
@@ -536,9 +550,26 @@ exports.redeemWhatsAppCoupon = async (req, res) => {
 
         if (updateError) throw updateError;
 
+        // 5. Record Transaction
+        const deduction = claim.offers?.wallet_deduction_amount || 0;
+        await supabase
+            .from("transactions")
+            .insert([{
+                vendor_id: vendor_id,
+                customer_id: user?.customer_id || null,
+                offer_id: claim.offer_id,
+                coupon_code: coupon_code,
+                amount: deduction,
+                wallet_used: deduction,
+                transaction_type: 'Redemption',
+                transaction_status: 'Completed',
+                transaction_date: new Date().toISOString()
+            }]);
+
         res.json({
             success: true,
-            message: "Coupon Redeemed Successfully ✅"
+            message: "Coupon Redeemed Successfully ✅",
+            offer_title: claim.offers?.offer_title
         });
 
     } catch (err) {

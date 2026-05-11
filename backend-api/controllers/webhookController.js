@@ -217,16 +217,22 @@ exports.receiveMessage = async (req, res) => {
 
     // 8. Categories Flow
     if (lowerMessage === 'categories' || lowerMessage === '2') {
-        const { data: categories, error } = await supabase
-            .from("vendors")
-            .select("business_category")
-            .not("business_category", "is", null);
+        // Fetch vendors that have active offers in user's city
+        const { data: activeOffers, error } = await supabase
+            .from("offers")
+            .select(`
+                vendors!inner (
+                    business_category
+                )
+            `)
+            .eq("offer_status", "Active")
+            .ilike("city", `%${user.city}%`);
 
-        if (error || !categories || categories.length === 0) {
-            await sendWhatsAppMessage(from, "No categories available currently 😊");
+        if (error || !activeOffers || activeOffers.length === 0) {
+            await sendWhatsAppMessage(from, `No categories available in *${user.city}* currently 😊`);
         } else {
-            const uniqueCategories = [...new Set(categories.map(c => c.business_category))];
-            let reply = `📂 *Available Categories:*\n\n`;
+            const uniqueCategories = [...new Set(activeOffers.map(o => o.vendors?.business_category).filter(Boolean))];
+            let reply = `📂 *Available Categories in ${user.city}:*\n\n`;
             uniqueCategories.forEach((cat, index) => {
                 reply += `${index + 1}️⃣ ${cat}\n`;
             });
@@ -240,8 +246,15 @@ exports.receiveMessage = async (req, res) => {
     // 8.1 Handle Category Selection
     if (user.current_step === 'picking_category') {
         let selectedCategory = text.trim();
-        const { data: categories } = await supabase.from("vendors").select("business_category").not("business_category", "is", null);
-        const uniqueCategories = [...new Set(categories.map(c => c.business_category))];
+        
+        // Re-fetch unique categories for the city to map the number correctly
+        const { data: activeOffers } = await supabase
+            .from("offers")
+            .select("vendors!inner(business_category)")
+            .eq("offer_status", "Active")
+            .ilike("city", `%${user.city}%`);
+        
+        const uniqueCategories = [...new Set(activeOffers?.map(o => o.vendors?.business_category).filter(Boolean) || [])];
 
         if (!isNaN(selectedCategory)) {
             const index = parseInt(selectedCategory) - 1;
