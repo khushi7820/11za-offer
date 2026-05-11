@@ -102,7 +102,7 @@ exports.receiveMessage = async (req, res) => {
         const { data: wallet } = await supabase
             .from("wallets")
             .select("balance")
-            .eq("customer_id", user.id)
+            .eq("customer_id", user.customer_id)
             .maybeSingle();
 
         const balance = wallet ? wallet.balance : 0;
@@ -170,7 +170,7 @@ exports.receiveMessage = async (req, res) => {
         const { data: wallet } = await supabase
             .from("wallets")
             .select("*")
-            .eq("customer_id", user.id)
+            .eq("customer_id", user.customer_id)
             .maybeSingle();
 
         const balance = wallet ? wallet.balance : 0;
@@ -184,12 +184,11 @@ exports.receiveMessage = async (req, res) => {
         const couponCode = "11ZA" + Math.floor(1000 + Math.random() * 9000);
 
         // Transaction: Deduct wallet and save claim
-        // Note: Ideally use a RPC for atomic transaction
         if (deduction > 0) {
             await supabase
                 .from("wallets")
                 .update({ balance: balance - deduction })
-                .eq("customer_id", user.id);
+                .eq("customer_id", user.customer_id);
         }
 
         const { error: claimError } = await supabase
