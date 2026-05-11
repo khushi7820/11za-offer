@@ -49,12 +49,40 @@ exports.receiveMessage = async (req, res) => {
             await sendWhatsAppMessage(from, "Which city are you from? 📍");
         } else if (user.current_step === 'awaiting_city') {
             const city = text.trim();
+
+            // 1. Create Customer record
+            const { data: customer, error: customerError } = await supabase
+                .from("customers")
+                .insert([{
+                    customer_name: user.customer_name,
+                    mobile_number: from,
+                    city: city
+                }])
+                .select()
+                .single();
+
+            if (customerError) {
+                console.error("Customer Creation Error:", customerError);
+                return await sendWhatsAppMessage(from, "Something went wrong. Please try again later. 😔");
+            }
+
+            // 2. Create Wallet with welcome balance
+            await supabase
+                .from("wallets")
+                .insert([{
+                    customer_id: customer.id,
+                    balance: 100
+                }]);
+
+            // 3. Link WhatsApp user and complete onboarding
             await updateUser(from, { 
-                city: city, 
+                city: city,
+                customer_id: customer.id,
                 onboarding_completed: true,
                 current_step: 'completed'
             });
-            await sendWhatsAppMessage(from, `Awesome 😊\nYou'll now receive offers for ${city} only 🎁`);
+
+            await sendWhatsAppMessage(from, `Awesome 😊\nYou'll now receive offers for ${city} only 🎁\n\n🎁 *Welcome Gift!* ₹100 has been added to your wallet! 💰`);
         } else {
             // Initial state
             await sendWhatsAppMessage(from, "Welcome to 11za 🎉\nWhat is your name? 😊");
