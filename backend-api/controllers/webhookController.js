@@ -211,7 +211,8 @@ exports.receiveMessage = async (req, res) => {
         }
 
         // Generate Coupon
-        const couponCode = "11ZA" + Math.floor(1000 + Math.random() * 9000);
+        // Generate Coupon (10 characters: 11ZA + 6 digits)
+        const couponCode = "11ZA" + Math.floor(100000 + Math.random() * 900000);
 
         // Transaction: Deduct wallet and save claim
         if (deduction > 0) {
