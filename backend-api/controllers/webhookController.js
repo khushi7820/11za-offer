@@ -111,24 +111,26 @@ exports.receiveMessage = async (req, res) => {
     }
 
     // 5. My Coupons Flow
-    if (lowerMessage === 'my coupons' || lowerMessage === '4') {
+    if (lowerMessage === 'my coupons' || lowerMessage === '3') {
         const { data: claims, error } = await supabase
             .from("coupon_claims")
-            .select(`
-                coupon_code,
-                offers (
-                    offer_title,
-                    vendors (business_name)
-                )
-            `)
+            .select("*")
             .eq("mobile_number", from);
 
         if (error || !claims || claims.length === 0) {
             await sendWhatsAppMessage(from, "You haven't claimed any coupons yet 😊");
         } else {
+            // Fetch offer details for each claim
+            const offerIds = claims.map(c => c.offer_id);
+            const { data: offers } = await supabase
+                .from("offers")
+                .select("id, offer_title, vendors(business_name)")
+                .in("id", offerIds);
+
             let reply = `🎟 *My Claimed Coupons:*\n\n`;
             claims.forEach((claim) => {
-                reply += `🎁 ${claim.offers?.offer_title}\n🎟 Code: *${claim.coupon_code}*\n🏪 ${claim.offers?.vendors?.business_name || "Vendor"}\n\n`;
+                const offer = offers?.find(o => o.id === claim.offer_id);
+                reply += `🎁 ${offer?.offer_title || "Special Offer"}\n🎟 Code: *${claim.coupon_code}*\n🏪 ${offer?.vendors?.business_name || "Vendor"}\n\n`;
             });
             await sendWhatsAppMessage(from, reply);
         }
