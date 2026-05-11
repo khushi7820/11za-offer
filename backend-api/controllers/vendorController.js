@@ -174,6 +174,9 @@ exports.createOffer = async (req, res) => {
             city
         } = req.body;
 
+        // Generate unique offer code (e.g. OFFER123)
+        const offerCode = "OFFER" + Math.floor(100 + Math.random() * 900);
+ 
         const { data, error } = await supabase
             .from('offers')
             .insert([
@@ -187,7 +190,8 @@ exports.createOffer = async (req, res) => {
                     validity_end,
                     terms_conditions,
                     wallet_deduction_amount,
-                    city
+                    city,
+                    offer_code: offerCode
                 }
             ])
             .select();

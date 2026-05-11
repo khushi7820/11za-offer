@@ -101,8 +101,9 @@ exports.receiveMessage = async (req, res) => {
               } else {
                   let reply = `🎁 *Available Offers in ${userCity}:*\n\n`;
                   offers.forEach((offer) => {
-                      reply += `🏪 *${offer.vendors?.owner_name || "Vendor"}*\n🎁 ${offer.offer_title}\n💸 ${offer.discount_type || "Special Offer"}\n📍 City: ${offer.city}\n\n`;
+                      reply += `🏪 *${offer.vendors?.owner_name || "Vendor"}*\n🎁 ${offer.offer_title}\n💸 ${offer.discount_type || "Special Offer"}\n🆔 Code: *${offer.offer_code}*\n\n`;
                   });
+                  reply += `\nTo claim an offer, type: *claim <Code>*\nExample: _claim OFFER123_`;
                   await sendWhatsAppMessage(from, reply);
               }
               return res.status(200).send("OFFERS_SENT");
@@ -110,21 +111,21 @@ exports.receiveMessage = async (req, res) => {
 
           // 4. Claim Coupon Logic
           if (lowerMessage.startsWith("claim")) {
-              const offerName = lowerMessage.replace("claim", "").trim();
+              const code = lowerMessage.replace("claim", "").trim().toUpperCase();
               
-              if (!offerName) {
-                  return await sendWhatsAppMessage(from, "Please specify the offer you want to claim. E.g., 'claim hair' 😊");
+              if (!code) {
+                  return await sendWhatsAppMessage(from, "Please specify the offer code you want to claim. E.g., 'claim OFFER123' 😊");
               }
 
               const { data: offer, error: findError } = await supabase
                   .from("offers")
                   .select("*")
-                  .ilike("offer_title", `%${offerName}%`)
+                  .eq("offer_code", code)
                   .limit(1)
                   .single();
 
               if (findError || !offer) {
-                  return await sendWhatsAppMessage(from, `Sorry, I couldn't find an offer for "${offerName}". Please check the offer list again. 😔`);
+                  return await sendWhatsAppMessage(from, `Sorry, I couldn't find an offer with code "${code}". Please check the offer list again. 😔`);
               }
 
               // 4a. Duplicate Claim Prevention Check
