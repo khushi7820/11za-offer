@@ -31,7 +31,7 @@ exports.receiveMessage = async (req, res) => {
 
       // 0. Reset Command for Testing
       if (text.toLowerCase() === 'reset') {
-          await updateUser(from, { onboarding_completed: false, current_step: 'start', customer_name: null });
+          await updateUser(from, { onboarding_completed: false, current_step: 'start', customer_name: null, city: null });
           await sendWhatsAppMessage(from, "Your state has been reset! Send 'hi' to start onboarding again. 🔄");
           return res.status(200).send("RESET_DONE");
       }
@@ -45,11 +45,20 @@ exports.receiveMessage = async (req, res) => {
               const name = text.trim();
               await updateUser(from, { 
                   customer_name: name, 
+                  current_step: 'awaiting_city'
+              });
+              
+              const askCityMsg = `Nice to meet you ${name} 😊\n\nWhich city are you from?`;
+              await sendWhatsAppMessage(from, askCityMsg);
+          } else if (user.current_step === 'awaiting_city') {
+              const city = text.trim();
+              await updateUser(from, { 
+                  city: city, 
                   onboarding_completed: true,
                   current_step: 'completed'
               });
               
-              const welcomeMsg = `Nice to meet you ${name}! 😊\n\nI can help you with:\n🎁 Offers\n🏪 Nearby vendors\n🎟 Coupons\n💰 Wallet rewards\n\nHow can I help you today?`;
+              const welcomeMsg = `Awesome 😊\n\nYou’ll now receive offers for ${city} only 🎁\n\nI can help you with:\n🎁 Offers\n🏪 Nearby vendors\n🎟 Coupons\n💰 Wallet rewards\n\nHow can I help you today?`;
               await sendWhatsAppMessage(from, welcomeMsg);
           } else {
               const askNameMsg = "Hey 👋\nWelcome to 11za!\n\nBefore we continue, may I know your name? 😊";
@@ -61,16 +70,21 @@ exports.receiveMessage = async (req, res) => {
 
           // 3. Keyword Detection for Offers (Join with Vendors)
           if (lowerMessage.includes("offer") || lowerMessage.includes("offers")) {
+              const userCity = user.city;
+              console.log(`Fetching offers for city: ${userCity}`);
+
               const { data: offers, error } = await supabase
                   .from("offers")
                   .select(`
                       *,
-                      vendors (
+                      vendors!inner (
                           owner_name,
+                          city,
                           business_category
                       )
                   `)
-                  .eq("offer_status", "Active");
+                  .eq("offer_status", "Active")
+                  .eq("vendors.city", userCity);
 
               if (error) {
                   console.error("Fetch Error:", error);
