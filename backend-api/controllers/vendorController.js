@@ -205,7 +205,8 @@ exports.createOffer = async (req, res) => {
                     terms_conditions,
                     wallet_deduction_amount,
                     city,
-                    offer_code: offerCode
+                    offer_code: offerCode,
+                    offer_status: 'Active'
                 }
             ])
             .select();
@@ -236,7 +237,7 @@ exports.getVendorOffers = async (req, res) => {
 
         const today = new Date().toISOString().split('T')[0];
 
-        // Auto expire offers
+        // Auto expire offers (only if validity_end is strictly in the past)
         await supabase
             .from('offers')
             .update({
