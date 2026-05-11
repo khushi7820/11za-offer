@@ -174,8 +174,8 @@ exports.createOffer = async (req, res) => {
             city
         } = req.body;
 
-        // Generate unique offer code (e.g. OFFER123)
-        const offerCode = "OFFER" + Math.floor(100 + Math.random() * 900);
+        // Generate unique offer code (e.g. OFFER4821)
+        const offerCode = "OFFER" + Math.floor(1000 + Math.random() * 9000);
  
         const { data, error } = await supabase
             .from('offers')
