@@ -51,14 +51,18 @@ exports.receiveMessage = async (req, res) => {
               const askCityMsg = `Nice to meet you ${name} 😊\n\nWhich city are you from?`;
               await sendWhatsAppMessage(from, askCityMsg);
           } else if (user.current_step === 'awaiting_city') {
-              const city = text.trim();
+              // Normalize city: "i am from Surat" -> "Surat" (simple version for now)
+              // Better: tell user to just send city name
+              const rawCity = text.trim();
+              const city = rawCity.split(' ').pop(); // Take last word as a fallback guess
+              
               await updateUser(from, { 
                   city: city, 
                   onboarding_completed: true,
                   current_step: 'completed'
               });
               
-              const welcomeMsg = `Awesome 😊\n\nYou’ll now receive offers for ${city} only 🎁\n\nI can help you with:\n🎁 Offers\n🏪 Nearby vendors\n🎟 Coupons\n💰 Wallet rewards\n\nHow can I help you today?`;
+              const welcomeMsg = `Awesome 😊\n\nYou’ll now receive offers for *${city}* only 🎁\n\n(Tip: You can always send 'reset' if you want to change your city)\n\nHow can I help you today?`;
               await sendWhatsAppMessage(from, welcomeMsg);
           } else {
               const askNameMsg = "Hey 👋\nWelcome to 11za!\n\nBefore we continue, may I know your name? 😊";
@@ -86,8 +90,8 @@ exports.receiveMessage = async (req, res) => {
                           business_category
                       )
                   `)
-                  .eq("offer_status", "Active")
-                  .eq("city", userCity);
+                  .ilike("offer_status", "Active")
+                  .ilike("city", `%${userCity}%`);
 
               if (error) {
                   console.error("Fetch Error:", error);
