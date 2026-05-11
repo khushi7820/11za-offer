@@ -174,6 +174,20 @@ exports.createOffer = async (req, res) => {
             city
         } = req.body;
 
+        // Duplicate Check (Check if same title created recently)
+        const { data: existingOffer } = await supabase
+            .from('offers')
+            .select('id')
+            .eq('vendor_id', vendor_id)
+            .eq('offer_title', offer_title)
+            .eq('offer_status', 'Active')
+            .limit(1)
+            .maybeSingle();
+
+        if (existingOffer) {
+            return res.status(400).json({ success: false, message: "An active offer with this title already exists!" });
+        }
+
         // Generate unique offer code (e.g. OFFER4821)
         const offerCode = "OFFER" + Math.floor(1000 + Math.random() * 9000);
  
