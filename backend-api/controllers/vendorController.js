@@ -170,7 +170,8 @@ exports.createOffer = async (req, res) => {
             validity_start,
             validity_end,
             terms_conditions,
-            wallet_deduction_amount
+            wallet_deduction_amount,
+            city
         } = req.body;
 
         const { data, error } = await supabase
@@ -185,7 +186,8 @@ exports.createOffer = async (req, res) => {
                     validity_start,
                     validity_end,
                     terms_conditions,
-                    wallet_deduction_amount
+                    wallet_deduction_amount,
+                    city
                 }
             ])
             .select();

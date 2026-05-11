@@ -71,30 +71,33 @@ exports.receiveMessage = async (req, res) => {
           // 3. Keyword Detection for Offers (Join with Vendors)
           if (lowerMessage.includes("offer") || lowerMessage.includes("offers")) {
               const userCity = user.city;
-              console.log(`Fetching offers for city: ${userCity}`);
+              console.log(`Fetching offers for user city: ${userCity}`);
+
+              if (!userCity) {
+                  return await sendWhatsAppMessage(from, "Please set your city first by sending 'reset' and completing onboarding! 😊");
+              }
 
               const { data: offers, error } = await supabase
                   .from("offers")
                   .select(`
                       *,
-                      vendors!inner (
+                      vendors (
                           owner_name,
-                          city,
                           business_category
                       )
                   `)
                   .eq("offer_status", "Active")
-                  .eq("vendors.city", userCity);
+                  .eq("city", userCity);
 
               if (error) {
                   console.error("Fetch Error:", error);
                   await sendWhatsAppMessage(from, "Unable to fetch offers right now 😔");
               } else if (!offers || offers.length === 0) {
-                  await sendWhatsAppMessage(from, "No active offers available currently 😊");
+                  await sendWhatsAppMessage(from, `No active offers available in *${userCity}* currently 😊`);
               } else {
-                  let reply = "🎁 *Available Offers:*\n\n";
+                  let reply = `🎁 *Available Offers in ${userCity}:*\n\n`;
                   offers.forEach((offer) => {
-                      reply += `🏪 *${offer.vendors?.owner_name || "Vendor"}*\n🎁 ${offer.offer_title}\n💸 ${offer.discount_type || "Special Offer"}\n\n`;
+                      reply += `🏪 *${offer.vendors?.owner_name || "Vendor"}*\n🎁 ${offer.offer_title}\n💸 ${offer.discount_type || "Special Offer"}\n📍 City: ${offer.city}\n\n`;
                   });
                   await sendWhatsAppMessage(from, reply);
               }
