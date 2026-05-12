@@ -196,14 +196,14 @@ exports.receiveMessage = async (req, res) => {
             return res.status(200).send("INVALID_SELECTION");
         }
 
+        await updateUser(from, { current_step: `confirming_claim:${selectedOffer.id}` });
         const reply = `📢 *Confirm Claim?*\n\n🎁 Offer: ${selectedOffer.offer_title}\n💰 Wallet Deduction: ₹${selectedOffer.wallet_deduction_amount}\n\nReply *YES* to confirm!`;
         await sendWhatsAppMessage(from, reply);
-        await updateUser(from, { current_step: `confirming_claim:${selectedOffer.id}` });
         return res.status(200).send("CONFIRM_CLAIM_SENT");
     }
 
     // 3. Handle Confirming Claim
-    if (user.current_step.startsWith('confirming_claim:') && !['menu', 'reset', 'hi', 'hello'].includes(lowerMessage)) {
+    if (user.current_step.startsWith('confirming_claim:') && !isMenuKeyword) {
         if (lowerMessage !== 'yes') {
             await sendWhatsAppMessage(from, "Claim cancelled. Type MENU to start over 😊");
             await updateUser(from, { current_step: 'completed' });
