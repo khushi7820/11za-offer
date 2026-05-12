@@ -2,7 +2,7 @@ require('dotenv').config();
 const supabase = require('./config/supabaseClient');
 
 async function checkSchema() {
-    const { data, error } = await supabase.from('whatsapp_users').select('*').limit(1);
+    const { data, error } = await supabase.from('coupon_claims').select('*').limit(1);
     if (error) {
         console.error(error);
     } else {
