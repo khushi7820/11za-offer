@@ -158,14 +158,16 @@ exports.receiveMessage = async (req, res) => {
         let selectedOffer = null;
         const userInput = text.trim();
 
-        if (!isNaN(userInput)) {
-            const index = parseInt(userInput) - 1;
-            if (index >= 0 && index < offers.length) {
-                selectedOffer = offers[index];
+        if (offers && offers.length > 0) {
+            if (!isNaN(userInput)) {
+                const index = parseInt(userInput) - 1;
+                if (index >= 0 && index < offers.length) {
+                    selectedOffer = offers[index];
+                }
+            } else {
+                // Match by name
+                selectedOffer = offers.find(o => o.offer_title.toLowerCase() === userInput.toLowerCase());
             }
-        } else {
-            // Match by name
-            selectedOffer = offers.find(o => o.offer_title.toLowerCase() === userInput.toLowerCase());
         }
 
         if (!selectedOffer) {
