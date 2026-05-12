@@ -92,16 +92,19 @@ exports.receiveMessage = async (req, res) => {
     }
 
     // --- STATE HANDLING (PRIORITY) ---
+    const menuKeywords = ['menu', 'hi', 'hello', 'reset', 'hey', 'hii', 'help', 'options', 'start'];
+    const isMenuKeyword = menuKeywords.includes(lowerMessage);
+    const userCity = (user.city || '').trim();
     
     // 1. Handle Picking Category
-    if (user.current_step === 'picking_category' && !['menu', 'reset', 'hi', 'hello'].includes(lowerMessage)) {
+    if (user.current_step === 'picking_category' && !isMenuKeyword) {
         const { data: activeOffers } = await supabase
             .from("offers")
             .select("vendors!inner(business_category)")
             .eq("offer_status", "Active")
-            .ilike("city", `%${user.city}%`);
+            .ilike("city", `%${userCity}%`);
         
-        const uniqueCategories = [...new Set(activeOffers?.map(o => o.vendors?.business_category).filter(Boolean) || [])];
+        const uniqueCategories = [...new Set(activeOffers?.map(o => o.vendors?.business_category?.trim()).filter(Boolean) || [])];
         let selectedCategory = text.trim();
 
         // Check for number match
@@ -116,7 +119,7 @@ exports.receiveMessage = async (req, res) => {
             if (matched) selectedCategory = matched;
         }
 
-        const { data: offers, error } = await supabase
+        const { data: allOffers } = await supabase
             .from("offers")
             .select(`
                 id,
@@ -127,11 +130,14 @@ exports.receiveMessage = async (req, res) => {
                 )
             `)
             .eq("offer_status", "Active")
-            .ilike("city", `%${user.city}%`)
-            .ilike("vendors.business_category", `%${selectedCategory}%`);
+            .ilike("city", `%${userCity}%`);
 
-        if (error || !offers || offers.length === 0) {
-            await sendWhatsAppMessage(from, `No offers found in ${selectedCategory} 😊\nType MENU to see other options.`);
+        const offers = allOffers?.filter(o => 
+            o.vendors?.business_category?.trim().toLowerCase() === selectedCategory.toLowerCase()
+        ) || [];
+
+        if (offers.length === 0) {
+            await sendWhatsAppMessage(from, `Sorry, I couldn't find offers for "${selectedCategory}" in ${userCity} 😊\nType MENU to see other categories.`);
             await updateUser(from, { current_step: 'completed' });
         } else {
             let reply = `🎁 *${selectedCategory} Offers:*\n\n`;
@@ -146,11 +152,9 @@ exports.receiveMessage = async (req, res) => {
     }
 
     // 2. Handle Picking Offer
-    if (user.current_step.startsWith('picking_offer:') && !['menu', 'reset', 'hi', 'hello'].includes(lowerMessage)) {
+    if (user.current_step.startsWith('picking_offer:') && !isMenuKeyword) {
         const selectedCategory = user.current_step.split(':')[1];
-        
-        // Fetch all active offers for the city and join with vendor category
-        const { data: allOffers, error: offerError } = await supabase
+        const { data: allOffers } = await supabase
             .from("offers")
             .select(`
                 id, 
@@ -161,16 +165,11 @@ exports.receiveMessage = async (req, res) => {
                 )
             `)
             .eq("offer_status", "Active")
-            .ilike("city", `%${user.city}%`);
+            .ilike("city", `%${userCity}%`);
 
-        if (offerError) console.error("Supabase Offer Error:", offerError);
-
-        // Filter by category in Javascript for better reliability
         const offers = allOffers?.filter(o => 
-            o.vendors?.business_category?.trim().toLowerCase() === selectedCategory.trim().toLowerCase()
+            o.vendors?.business_category?.trim().toLowerCase() === selectedCategory.toLowerCase()
         ) || [];
-
-        console.log(`Step: picking_offer | Category: ${selectedCategory} | Found: ${offers.length}`);
 
         let selectedOffer = null;
         const userInput = text.trim();
@@ -188,8 +187,20 @@ exports.receiveMessage = async (req, res) => {
         }
 
         if (!selectedOffer) {
-            return await sendWhatsAppMessage(from, "Please reply with a valid offer number or name from the list above 👆");
+            if (offers.length === 0) {
+                await sendWhatsAppMessage(from, "The offers for this category are no longer available 😔. Type MENU to browse others.");
+                await updateUser(from, { current_step: 'completed' });
+            } else {
+                await sendWhatsAppMessage(from, "Please reply with a valid offer number or name from the list above 👆\n(Or type MENU to go back)");
+            }
+            return res.status(200).send("INVALID_SELECTION");
         }
+
+        const reply = `📢 *Confirm Claim?*\n\n🎁 Offer: ${selectedOffer.offer_title}\n💰 Wallet Deduction: ₹${selectedOffer.wallet_deduction_amount}\n\nReply *YES* to confirm!`;
+        await sendWhatsAppMessage(from, reply);
+        await updateUser(from, { current_step: `confirming_claim:${selectedOffer.id}` });
+        return res.status(200).send("CONFIRM_CLAIM_SENT");
+    }
 
         const reply = `📢 *Confirm Claim?*\n\n🎁 Offer: ${selectedOffer.offer_title}\n💰 Wallet Deduction: ₹${selectedOffer.wallet_deduction_amount}\n\nReply *YES* to confirm!`;
         await sendWhatsAppMessage(from, reply);
