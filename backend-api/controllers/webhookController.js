@@ -96,114 +96,26 @@ exports.receiveMessage = async (req, res) => {
     const isMenuKeyword = menuKeywords.includes(lowerMessage);
     const userCity = (user.city || '').trim();
     
-    // 1. Handle Picking Category
-    if (user.current_step === 'picking_category' && !isMenuKeyword) {
-        const { data: activeOffers } = await supabase
-            .from("offers")
-            .select("vendors!inner(business_category)")
-            .eq("offer_status", "Active")
-            .ilike("city", `%${userCity}%`);
-        
-        const uniqueCategories = [...new Set(activeOffers?.map(o => o.vendors?.business_category?.trim()).filter(Boolean) || [])];
-        let selectedCategory = text.trim();
+    console.log(`Processing Message: "${text}" | User State: ${user.current_step} | City: ${userCity}`);
 
-        // Check for number match
-        if (!isNaN(selectedCategory)) {
-            const index = parseInt(selectedCategory) - 1;
-            if (index >= 0 && index < uniqueCategories.length) {
-                selectedCategory = uniqueCategories[index];
-            }
-        } else {
-            // Check for name match (case insensitive)
-            const matched = uniqueCategories.find(c => c.toLowerCase() === selectedCategory.toLowerCase());
-            if (matched) selectedCategory = matched;
+    // Handle Greetings/Reset first to break out of any state
+    if (isMenuKeyword) {
+        if (lowerMessage === 'reset') {
+            await updateUser(from, { onboarding_completed: false, current_step: 'awaiting_name', customer_name: null, city: null });
+            await sendWhatsAppMessage(from, "Welcome to 11za 🎉\nWhat is your name? 😊");
+            return res.status(200).send("RESET_DONE");
         }
-
-        const { data: allOffers } = await supabase
-            .from("offers")
-            .select(`
-                id,
-                offer_title,
-                vendors!inner (
-                    business_name,
-                    business_category
-                )
-            `)
-            .eq("offer_status", "Active")
-            .ilike("city", `%${userCity}%`);
-
-        const offers = allOffers?.filter(o => 
-            o.vendors?.business_category?.trim().toLowerCase() === selectedCategory.toLowerCase()
-        ) || [];
-
-        if (offers.length === 0) {
-            await sendWhatsAppMessage(from, `Sorry, I couldn't find offers for "${selectedCategory}" in ${userCity} 😊\nType MENU to see other categories.`);
-            await updateUser(from, { current_step: 'completed' });
-        } else {
-            let reply = `🎁 *${selectedCategory} Offers:*\n\n`;
-            offers.forEach((offer, index) => {
-                reply += `${index + 1}️⃣ ${offer.offer_title}\n🏪 ${offer.vendors.business_name}\n\n`;
-            });
-            reply += `Reply with the offer *number* or *name*!`;
-            await sendWhatsAppMessage(from, reply);
-            await updateUser(from, { current_step: `picking_offer:${selectedCategory}` });
-        }
-        return res.status(200).send("OFFER_LIST_SENT");
+        const menuMsg = `🏠 11za Menu\n\n1️⃣ Offers\n2️⃣ Wallet\n3️⃣ Categories\n4️⃣ My Claims\n5️⃣ Help`;
+        await sendWhatsAppMessage(from, menuMsg);
+        await updateUser(from, { current_step: 'completed' });
+        return res.status(200).send("MENU_SENT");
     }
 
-    // 2. Handle Picking Offer
-    if (user.current_step.startsWith('picking_offer:') && !isMenuKeyword) {
-        const selectedCategory = user.current_step.split(':')[1];
-        const { data: allOffers } = await supabase
-            .from("offers")
-            .select(`
-                id, 
-                offer_title, 
-                wallet_deduction_amount,
-                vendors!inner (
-                    business_category
-                )
-            `)
-            .eq("offer_status", "Active")
-            .ilike("city", `%${userCity}%`);
+    // --- DETERMINISTIC FLOW (if-else chain) ---
 
-        const offers = allOffers?.filter(o => 
-            o.vendors?.business_category?.trim().toLowerCase() === selectedCategory.toLowerCase()
-        ) || [];
-
-        let selectedOffer = null;
-        const userInput = text.trim();
-
-        if (offers.length > 0) {
-            if (!isNaN(userInput)) {
-                const index = parseInt(userInput) - 1;
-                if (index >= 0 && index < offers.length) {
-                    selectedOffer = offers[index];
-                }
-            } else {
-                // Match by name
-                selectedOffer = offers.find(o => o.offer_title.trim().toLowerCase() === userInput.toLowerCase());
-            }
-        }
-
-        if (!selectedOffer) {
-            if (offers.length === 0) {
-                await sendWhatsAppMessage(from, "The offers for this category are no longer available 😔. Type MENU to browse others.");
-                await updateUser(from, { current_step: 'completed' });
-            } else {
-                await sendWhatsAppMessage(from, "Please reply with a valid offer number or name from the list above 👆\n(Or type MENU to go back)");
-            }
-            return res.status(200).send("INVALID_SELECTION");
-        }
-
-        await updateUser(from, { current_step: `confirming_claim:${selectedOffer.id}` });
-        const reply = `📢 *Confirm Claim?*\n\n🎁 Offer: ${selectedOffer.offer_title}\n💰 Wallet Deduction: ₹${selectedOffer.wallet_deduction_amount}\n\nReply *YES* to confirm!`;
-        await sendWhatsAppMessage(from, reply);
-        return res.status(200).send("CONFIRM_CLAIM_SENT");
-    }
-
-    // 3. Handle Confirming Claim
-    if (user.current_step.startsWith('confirming_claim:') && !isMenuKeyword) {
+    if (user.current_step.startsWith('confirming_claim:')) {
+        // 1. Handle Claim Confirmation (HIGHEST PRIORITY)
+        console.log("Entering confirming_claim logic...");
         if (lowerMessage !== 'yes') {
             await sendWhatsAppMessage(from, "Claim cancelled. Type MENU to start over 😊");
             await updateUser(from, { current_step: 'completed' });
@@ -239,81 +151,148 @@ exports.receiveMessage = async (req, res) => {
         await sendWhatsAppMessage(from, `✅ *Offer claimed successfully!*\n\n₹${deduction} has been deducted from your wallet.\n\nVisit the shop and show your mobile number to redeem this offer. 😊`);
         await updateUser(from, { current_step: 'completed' });
         return res.status(200).send("CLAIM_SUCCESS");
-    }
 
-    // --- GENERAL KEYWORDS (FALLBACK) ---
-
-    // 2. Main Menu
-    if (['menu', 'hi', 'hello', 'reset'].includes(lowerMessage)) {
-        if (lowerMessage === 'reset') {
-            await updateUser(from, { onboarding_completed: false, current_step: 'awaiting_name', customer_name: null, city: null });
-            await sendWhatsAppMessage(from, "Welcome to 11za 🎉\nWhat is your name? 😊");
-            return res.status(200).send("RESET_DONE");
-        }
-        const menuMsg = `🏠 11za Menu\n\n1️⃣ Offers\n2️⃣ Wallet\n3️⃣ Categories\n4️⃣ My Claims\n5️⃣ Help`;
-        await sendWhatsAppMessage(from, menuMsg);
-        await updateUser(from, { current_step: 'completed' });
-        return res.status(200).send("MENU_SENT");
-    }
-
-    // 3. Offers Flow (Start)
-    if (lowerMessage === 'offers' || lowerMessage === '1' || lowerMessage === 'categories' || lowerMessage === '3') {
-        const { data: activeOffers, error } = await supabase
+    } else if (user.current_step.startsWith('picking_offer:')) {
+        // 2. Handle Picking Offer
+        console.log("Entering picking_offer logic...");
+        const selectedCategory = user.current_step.split(':')[1];
+        const { data: allOffers } = await supabase
             .from("offers")
             .select(`
+                id, 
+                offer_title, 
+                wallet_deduction_amount,
                 vendors!inner (
                     business_category
                 )
             `)
             .eq("offer_status", "Active")
-            .ilike("city", `%${user.city}%`);
+            .ilike("city", `%${userCity}%`);
 
-        if (error || !activeOffers || activeOffers.length === 0) {
-            await sendWhatsAppMessage(from, `No offers available in ${user.city} currently 😊`);
-            return res.status(200).send("NO_OFFERS");
+        const offers = allOffers?.filter(o => 
+            o.vendors?.business_category?.trim().toLowerCase() === selectedCategory.toLowerCase()
+        ) || [];
+
+        let selectedOffer = null;
+        const userInput = text.trim();
+
+        if (offers.length > 0) {
+            if (!isNaN(userInput)) {
+                const index = parseInt(userInput) - 1;
+                if (index >= 0 && index < offers.length) {
+                    selectedOffer = offers[index];
+                }
+            } else {
+                selectedOffer = offers.find(o => o.offer_title.trim().toLowerCase() === userInput.toLowerCase());
+            }
         }
 
-        const uniqueCategories = [...new Set(activeOffers.map(o => o.vendors?.business_category).filter(Boolean))];
-        let reply = `📂 *Available Categories in ${user.city}:*\n\n`;
-        uniqueCategories.forEach((cat, index) => {
-            reply += `${index + 1}️⃣ ${cat}\n`;
-        });
-        reply += `\nReply with category name or number!`;
+        if (!selectedOffer) {
+            if (offers.length === 0) {
+                await sendWhatsAppMessage(from, "The offers for this category are no longer available 😔. Type MENU to browse others.");
+                await updateUser(from, { current_step: 'completed' });
+            } else {
+                await sendWhatsAppMessage(from, "Please reply with a valid offer number or name from the list above 👆\n(Or type MENU to go back)");
+            }
+            return res.status(200).send("INVALID_SELECTION");
+        }
+
+        await updateUser(from, { current_step: `confirming_claim:${selectedOffer.id}` });
+        const reply = `📢 *Confirm Claim?*\n\n🎁 Offer: ${selectedOffer.offer_title}\n💰 Wallet Deduction: ₹${selectedOffer.wallet_deduction_amount}\n\nReply *YES* to confirm!`;
         await sendWhatsAppMessage(from, reply);
-        await updateUser(from, { current_step: 'picking_category' });
-        return res.status(200).send("CATEGORIES_SENT");
-    }
+        return res.status(200).send("CONFIRM_CLAIM_SENT");
 
-    // 4. Wallet Flow
-    if (lowerMessage === 'wallet' || lowerMessage === '2') {
-        const { data: wallet } = await supabase
-            .from("wallets")
-            .select("balance")
-            .eq("customer_id", user.customer_id)
-            .maybeSingle();
+    } else if (user.current_step === 'picking_category') {
+        // 3. Handle Picking Category
+        console.log("Entering picking_category logic...");
+        const { data: activeOffers } = await supabase
+            .from("offers")
+            .select("vendors!inner(business_category)")
+            .eq("offer_status", "Active")
+            .ilike("city", `%${userCity}%`);
+        
+        const uniqueCategories = [...new Set(activeOffers?.map(o => o.vendors?.business_category?.trim()).filter(Boolean) || [])];
+        let selectedCategory = text.trim();
 
-        const balance = wallet ? wallet.balance : 0;
-        await sendWhatsAppMessage(from, `💰 Wallet Balance: ₹${balance}`);
-        return res.status(200).send("WALLET_SENT");
-    }
-
-    // 5. My Claims Flow
-    if (lowerMessage === 'my claims' || lowerMessage === 'my coupons' || lowerMessage === '4') {
-        const { data: claims, error } = await supabase
-            .from("coupon_claims")
-            .select("*, offers(offer_title, vendors(business_name))")
-            .eq("mobile_number", from);
-
-        if (error || !claims || claims.length === 0) {
-            await sendWhatsAppMessage(from, "You haven't claimed any coupons yet 😊");
+        if (!isNaN(selectedCategory)) {
+            const index = parseInt(selectedCategory) - 1;
+            if (index >= 0 && index < uniqueCategories.length) {
+                selectedCategory = uniqueCategories[index];
+            }
         } else {
-            let reply = `🎟 *My Claimed Coupons:*\n\n`;
-            claims.forEach((claim) => {
-                reply += `🎁 ${claim.offers?.offer_title}\n🏪 ${claim.offers?.vendors?.business_name}\nStatus: ${claim.redeemed ? "Redeemed ✅" : "Claimed 🎟"}\n\n`;
-            });
-            await sendWhatsAppMessage(from, reply);
+            const matched = uniqueCategories.find(c => c.toLowerCase() === selectedCategory.toLowerCase());
+            if (matched) selectedCategory = matched;
         }
-        return res.status(200).send("MY_CLAIMS_SENT");
+
+        const { data: allOffers } = await supabase
+            .from("offers")
+            .select(`id, offer_title, vendors!inner(business_name, business_category)`)
+            .eq("offer_status", "Active")
+            .ilike("city", `%${userCity}%`);
+
+        const offers = allOffers?.filter(o => 
+            o.vendors?.business_category?.trim().toLowerCase() === selectedCategory.toLowerCase()
+        ) || [];
+
+        if (offers.length === 0) {
+            await sendWhatsAppMessage(from, `Sorry, I couldn't find offers for "${selectedCategory}" in ${userCity} 😊\nType MENU to see other categories.`);
+            await updateUser(from, { current_step: 'completed' });
+        } else {
+            let reply = `🎁 *${selectedCategory} Offers:*\n\n`;
+            offers.forEach((offer, index) => {
+                reply += `${index + 1}️⃣ ${offer.offer_title}\n🏪 ${offer.vendors.business_name}\n\n`;
+            });
+            reply += `Reply with the offer *number* or *name*!`;
+            await sendWhatsAppMessage(from, reply);
+            await updateUser(from, { current_step: `picking_offer:${selectedCategory}` });
+        }
+        return res.status(200).send("OFFER_LIST_SENT");
+
+    } else {
+        // --- KEYWORD FALLBACKS ---
+
+        // Offers Flow (Start)
+        if (lowerMessage === 'offers' || lowerMessage === '1' || lowerMessage === 'categories' || lowerMessage === '3') {
+            const { data: activeOffers } = await supabase
+                .from("offers")
+                .select(`vendors!inner (business_category)`)
+                .eq("offer_status", "Active")
+                .ilike("city", `%${userCity}%`);
+
+            if (!activeOffers || activeOffers.length === 0) {
+                await sendWhatsAppMessage(from, `No offers available in ${userCity} currently 😊`);
+                return res.status(200).send("NO_OFFERS");
+            }
+
+            const uniqueCategories = [...new Set(activeOffers.map(o => o.vendors?.business_category).filter(Boolean))];
+            let reply = `📂 *Available Categories in ${userCity}:*\n\n`;
+            uniqueCategories.forEach((cat, index) => { reply += `${index + 1}️⃣ ${cat}\n`; });
+            reply += `\nReply with category name or number!`;
+            await sendWhatsAppMessage(from, reply);
+            await updateUser(from, { current_step: 'picking_category' });
+            return res.status(200).send("CATEGORIES_SENT");
+        }
+
+        // Wallet Flow
+        if (lowerMessage === 'wallet' || lowerMessage === '2') {
+            const { data: wallet } = await supabase.from("wallets").select("balance").eq("customer_id", user.customer_id).maybeSingle();
+            const balance = wallet ? wallet.balance : 0;
+            await sendWhatsAppMessage(from, `💰 Wallet Balance: ₹${balance}`);
+            return res.status(200).send("WALLET_SENT");
+        }
+
+        // My Claims Flow
+        if (lowerMessage === 'my claims' || lowerMessage === 'my coupons' || lowerMessage === '4') {
+            const { data: claims } = await supabase.from("coupon_claims").select("*, offers(offer_title, vendors(business_name))").eq("mobile_number", from);
+            if (!claims || claims.length === 0) {
+                await sendWhatsAppMessage(from, "You haven't claimed any coupons yet 😊");
+            } else {
+                let reply = `🎟 *My Claimed Coupons:*\n\n`;
+                claims.forEach((claim) => { reply += `🎁 ${claim.offers?.offer_title}\n🏪 ${claim.offers?.vendors?.business_name}\nStatus: ${claim.redeemed ? "Redeemed ✅" : "Claimed 🎟"}\n\n`; });
+                await sendWhatsAppMessage(from, reply);
+            }
+            return res.status(200).send("MY_CLAIMS_SENT");
+        }
     }
 
     // Handle Help or generic input
