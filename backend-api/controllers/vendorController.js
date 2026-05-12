@@ -174,6 +174,18 @@ exports.createOffer = async (req, res) => {
             city
         } = req.body;
 
+        if (!validity_start || !validity_end) {
+            return res.status(400).json({ success: false, message: "Validity start and end dates are required" });
+        }
+
+        const today = new Date().toISOString().split('T')[0];
+        if (validity_start < today) {
+            return res.status(400).json({ success: false, message: "Start date cannot be in the past" });
+        }
+        if (validity_end < validity_start) {
+            return res.status(400).json({ success: false, message: "End date must be after start date" });
+        }
+
         // Duplicate Check (Check if same title created recently)
         const { data: existingOffer } = await supabase
             .from('offers')
@@ -273,30 +285,41 @@ exports.getVendorOffers = async (req, res) => {
 exports.dashboardStats = async (req, res) => {
     try {
         const { vendor_id } = req.params;
+        const today = new Date().toISOString().split('T')[0];
+
+        // Auto expire offers before getting stats
+        await supabase
+            .from('offers')
+            .update({ offer_status: 'Expired' })
+            .lt('validity_end', today)
+            .neq('offer_status', 'Expired')
+            .eq('vendor_id', vendor_id);
 
         const { data: offers } = await supabase
             .from('offers')
             .select('*')
             .eq('vendor_id', vendor_id);
 
-        const { data: transactions } = await supabase
-            .from('transactions')
-            .select('*')
-            .eq('vendor_id', vendor_id);
+        const { data: claims } = await supabase
+            .from('coupon_claims')
+            .select('id, redeemed, offers!inner(vendor_id)')
+            .eq('offers.vendor_id', vendor_id);
 
         const totalOffers = offers ? offers.length : 0;
         const activeOffers = offers ? offers.filter(o => o.offer_status === 'Active').length : 0;
-        const couponsClaimed = transactions ? transactions.length : 0;
-        const walletUsed = transactions
-            ? transactions.reduce((sum, item) => sum + Number(item.wallet_used || 0), 0)
-            : 0;
+        const couponsRedeemed = claims ? claims.filter(c => c.redeemed === true).length : 0;
+        const claimsReceived = claims ? claims.length : 0;
+        
+        // Customer Engagement: Unique customers who claimed
+        const uniqueCustomers = claims ? new Set(claims.map(c => c.mobile_number)).size : 0;
 
         res.json({
             success: true,
             totalOffers,
             activeOffers,
-            couponsClaimed,
-            walletUsed
+            claimsReceived,
+            couponsRedeemed,
+            customerEngagement: uniqueCustomers
         });
 
     } catch (err) {
@@ -413,35 +436,6 @@ exports.verifyCoupon = async (req, res) => {
     }
 };
 
-exports.getVendorActivity = async (req, res) => {
-    try {
-        const { vendor_id } = req.params;
-
-        const { data, error } = await supabase
-            .from('transactions')
-            .select('*')
-            .eq('vendor_id', vendor_id)
-            .order('transaction_date', { ascending: false })
-            .limit(20);
-
-        if (error) {
-            return res.status(400).json({
-                success: false,
-                message: error.message
-            });
-        }
-
-        res.json({
-            success: true,
-            activity: data
-        });
-    } catch (err) {
-        res.status(500).json({
-            success: false,
-            message: err.message
-        });
-    }
-};
 
 exports.deleteOffer = async (req, res) => {
     try {
@@ -475,10 +469,25 @@ exports.deleteOffer = async (req, res) => {
 exports.updateOffer = async (req, res) => {
     try {
         const { id } = req.params;
+        const updateData = { ...req.body };
+
+        // Date validation if dates are being updated
+        if (updateData.validity_start || updateData.validity_end) {
+            const today = new Date().toISOString().split('T')[0];
+            const start = updateData.validity_start;
+            const end = updateData.validity_end;
+
+            if (start && start < today) {
+                return res.status(400).json({ success: false, message: "Start date cannot be in the past" });
+            }
+            if (start && end && end < start) {
+                return res.status(400).json({ success: false, message: "End date must be after start date" });
+            }
+        }
 
         const { error } = await supabase
             .from('offers')
-            .update(req.body)
+            .update(updateData)
             .eq('id', id);
 
         if (error) {
@@ -577,11 +586,12 @@ exports.redeemWhatsAppCoupon = async (req, res) => {
             .eq("phone_number", claim.mobile_number)
             .single();
 
-        // 4. Mark as Redeemed
+        // 4. Mark as Redeemed (Update both redeemed boolean and claim_status)
         const { error: updateError } = await supabase
             .from("coupon_claims")
             .update({
                 redeemed: true,
+                claim_status: 'redeemed',
                 redeemed_at: new Date().toISOString()
             })
             .eq("coupon_code", coupon_code);
@@ -610,6 +620,46 @@ exports.redeemWhatsAppCoupon = async (req, res) => {
             offer_title: claim.offers?.offer_title
         });
 
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+// Get all claimed coupons for a vendor (waiting for redemption)
+exports.getVendorClaims = async (req, res) => {
+    try {
+        const { vendor_id } = req.params;
+
+        const { data, error } = await supabase
+            .from('coupon_claims')
+            .select(`
+                id,
+                coupon_code,
+                mobile_number,
+                redeemed,
+                created_at,
+                offers!inner (
+                    id,
+                    offer_title,
+                    vendor_id
+                )
+            `)
+            .eq('offers.vendor_id', vendor_id)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        res.json({
+            success: true,
+            claims: data.map(item => ({
+                id: item.id,
+                coupon_code: item.coupon_code,
+                customer_mobile: item.mobile_number,
+                offer_title: item.offers?.offer_title,
+                status: item.redeemed ? 'Redeemed' : 'Claimed',
+                claimed_at: item.created_at
+            }))
+        });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }

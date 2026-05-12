@@ -16,5 +16,6 @@ router.post('/redeem-coupon', authMiddleware, vendorController.redeemWhatsAppCou
 router.delete('/delete-offer/:id', authMiddleware, vendorController.deleteOffer);
 router.put('/update-offer/:id', authMiddleware, vendorController.updateOffer);
 router.get('/activity/:vendor_id', authMiddleware, vendorController.getVendorActivity);
+router.get('/claims/:vendor_id', authMiddleware, vendorController.getVendorClaims);
 
 module.exports = router;

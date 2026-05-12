@@ -36,7 +36,7 @@ exports.customerRegister = async (req, res) => {
                     city,
                     email,
                     password: hashedPassword,
-                    wallet_balance: 0
+                    wallet_balance: 100
                 }
             ])
             .select();
@@ -45,7 +45,7 @@ exports.customerRegister = async (req, res) => {
 
         // Auto-create Wallet
         const customer_id = data[0].id;
-        await supabase.from('wallets').insert([{ customer_id, balance: 0 }]);
+        await supabase.from('wallets').insert([{ customer_id, balance: 100 }]);
 
         res.json({
             success: true,
