@@ -148,17 +148,34 @@ exports.receiveMessage = async (req, res) => {
     // 2. Handle Picking Offer
     if (user.current_step.startsWith('picking_offer:') && !['menu', 'reset', 'hi', 'hello'].includes(lowerMessage)) {
         const selectedCategory = user.current_step.split(':')[1];
-        const { data: offers } = await supabase
+        
+        // Fetch all active offers for the city and join with vendor category
+        const { data: allOffers, error: offerError } = await supabase
             .from("offers")
-            .select("id, offer_title, wallet_deduction_amount")
+            .select(`
+                id, 
+                offer_title, 
+                wallet_deduction_amount,
+                vendors!inner (
+                    business_category
+                )
+            `)
             .eq("offer_status", "Active")
-            .ilike("city", `%${user.city}%`)
-            .ilike("vendors!inner.business_category", `%${selectedCategory}%`);
+            .ilike("city", `%${user.city}%`);
+
+        if (offerError) console.error("Supabase Offer Error:", offerError);
+
+        // Filter by category in Javascript for better reliability
+        const offers = allOffers?.filter(o => 
+            o.vendors?.business_category?.trim().toLowerCase() === selectedCategory.trim().toLowerCase()
+        ) || [];
+
+        console.log(`Step: picking_offer | Category: ${selectedCategory} | Found: ${offers.length}`);
 
         let selectedOffer = null;
         const userInput = text.trim();
 
-        if (offers && offers.length > 0) {
+        if (offers.length > 0) {
             if (!isNaN(userInput)) {
                 const index = parseInt(userInput) - 1;
                 if (index >= 0 && index < offers.length) {
@@ -166,7 +183,7 @@ exports.receiveMessage = async (req, res) => {
                 }
             } else {
                 // Match by name
-                selectedOffer = offers.find(o => o.offer_title.toLowerCase() === userInput.toLowerCase());
+                selectedOffer = offers.find(o => o.offer_title.trim().toLowerCase() === userInput.toLowerCase());
             }
         }
 
