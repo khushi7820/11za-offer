@@ -300,15 +300,6 @@ exports.receiveMessage = async (req, res) => {
         await sendWhatsAppMessage(from, aiReply);
     }
     return res.status(200).send("GENERIC_RESPONSE");
-    const aiReply = await generateAIResponse(text, user.customer_name);
-    if (!aiReply || aiReply.length < 5) {
-        // Fallback to unknown message if AI fails or gives too short response
-        await sendWhatsAppMessage(from, "Sorry 😊\nI didn’t understand that.\n\nType:\noffers\nwallet\nmy coupons\nmenu");
-    } else {
-        await sendWhatsAppMessage(from, aiReply);
-    }
-    
-    res.status(200).send("EVENT_RECEIVED");
   } catch (err) {
     console.error("Webhook Error:", err);
     res.status(500).send("Internal Server Error");
