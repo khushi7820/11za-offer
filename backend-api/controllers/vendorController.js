@@ -404,27 +404,12 @@ exports.verifyCoupon = async (req, res) => {
             .from("coupon_claims")
             .update({
                 redeemed: true,
+                claim_status: 'redeemed',
                 redeemed_at: new Date().toISOString()
             })
             .eq("coupon_code", coupon_code);
 
         if (updateError) throw updateError;
-
-        // Record Transaction
-        const deduction = claim.offers?.wallet_deduction_amount || 0;
-        await supabase
-            .from("transactions")
-            .insert([{
-                vendor_id: vendor_id,
-                customer_id: user?.customer_id || null,
-                offer_id: claim.offer_id,
-                coupon_code: coupon_code,
-                amount: deduction,
-                wallet_used: deduction,
-                transaction_type: 'Redemption',
-                transaction_status: 'Completed',
-                transaction_date: new Date().toISOString()
-            }]);
 
         return res.json({
             success: true,
@@ -597,22 +582,6 @@ exports.redeemWhatsAppCoupon = async (req, res) => {
             .eq("coupon_code", coupon_code);
 
         if (updateError) throw updateError;
-
-        // 5. Record Transaction
-        const deduction = claim.offers?.wallet_deduction_amount || 0;
-        await supabase
-            .from("transactions")
-            .insert([{
-                vendor_id: vendor_id,
-                customer_id: user?.customer_id || null,
-                offer_id: claim.offer_id,
-                coupon_code: coupon_code,
-                amount: deduction,
-                wallet_used: deduction,
-                transaction_type: 'Redemption',
-                transaction_status: 'Completed',
-                transaction_date: new Date().toISOString()
-            }]);
 
         res.json({
             success: true,
