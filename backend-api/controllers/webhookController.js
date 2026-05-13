@@ -50,7 +50,12 @@ exports.receiveMessage = async (req, res) => {
             await sendWhatsAppMessage(cleanNumber, "Which city are you from? 📍");
             return res.status(200).send("ONBOARDING_CITY");
         } else if (currentStep === 'awaiting_city') {
-            const city = text.trim();
+            // 1. Use AI to extract clean city name
+            const extractCityPrompt = `User said: "${text}". Extract ONLY the city name mentioned. If no city is mentioned, return the original text. Return only the city name, nothing else.`;
+            let city = await generateAIResponse(extractCityPrompt, "System");
+            city = city.replace(/[.!?]/g, "").trim();
+
+            // 2. Create Customer record
             const { data: customer, error: customerError } = await supabase.from("customers").insert([{ customer_name: freshUser.customer_name, mobile_number: cleanNumber, city: city }]).select().single();
             if (customerError) return res.status(200).send("DB_ERROR");
             
@@ -162,7 +167,10 @@ exports.receiveMessage = async (req, res) => {
 
     // 7. AWAITING NEW CITY
     if (currentStep === 'awaiting_new_city') {
-        const newCity = text.trim();
+        const extractCityPrompt = `User said: "${text}". Extract ONLY the city name mentioned. Return only the city name, nothing else.`;
+        let newCity = await generateAIResponse(extractCityPrompt, "System");
+        newCity = newCity.replace(/[.!?]/g, "").trim();
+
         await updateUser(cleanNumber, { city: newCity, current_step: 'completed' });
         if (freshUser.customer_id) await supabase.from("customers").update({ city: newCity }).eq("id", freshUser.customer_id);
         await sendWhatsAppMessage(cleanNumber, `✅ City updated to *${newCity}*!`);
