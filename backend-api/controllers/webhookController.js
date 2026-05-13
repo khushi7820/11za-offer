@@ -98,9 +98,9 @@ exports.receiveMessage = async (req, res) => {
     const isMenuKeyword = menuKeywords.includes(lowerMessage);
     const userCity = (user.city || '').trim();
     
-    console.log(`Processing Message: "${text}" | User State: ${user.current_step} | City: ${userCity}`);
+    console.log(`[STATE CHECK] Phone: ${from} | Msg: "${text}" | Initial State: ${user.current_step}`);
 
-    // Handle Greetings/Reset first to break out of any state
+    // Handle Greetings/Reset first
     if (isMenuKeyword) {
         if (lowerMessage === 'reset') {
             await updateUser(from, { onboarding_completed: false, current_step: 'awaiting_name', customer_name: null, city: null });
@@ -113,16 +113,13 @@ exports.receiveMessage = async (req, res) => {
         return res.status(200).send("MENU_SENT");
     }
 
-    if (user.current_step === 'awaiting_new_city') {
-        const newCity = text.trim();
-        
-        // 1. Update whatsapp_users
-        await updateUser(from, { 
-            city: newCity,
-            current_step: 'completed'
-        });
+    // RE-FETCH FRESH STATE to prevent race conditions during rapid messages
+    const freshUser = await getOrCreateUser(from);
+    const currentStep = freshUser.current_step || 'completed';
 
-        // 2. Update linked customer record
+    if (currentStep === 'awaiting_new_city') {
+        const newCity = text.trim();
+        await updateUser(from, { city: newCity, current_step: 'completed' });
         if (user.customer_id) {
             await supabase
                 .from("customers")
@@ -184,87 +181,44 @@ exports.receiveMessage = async (req, res) => {
             return res.status(200).send("CLAIM_CANCELLED");
         }
 
-    } else if (user.current_step.startsWith('picking_offer:')) {
-        // 2. Handle Picking Offer
-        console.log("Entering picking_offer logic...");
-        const selectedCategory = user.current_step.split(':')[1];
-        const { data: allOffers } = await supabase
-            .from("offers")
-            .select(`
-                id, 
-                offer_title, 
-                wallet_deduction_amount,
-                vendors!inner (
-                    business_category
-                )
-            `)
-            .eq("offer_status", "Active")
-            .ilike("city", `%${userCity}%`);
-
-        const offers = allOffers?.filter(o => 
-            o.vendors?.business_category?.trim().toLowerCase() === selectedCategory.toLowerCase()
-        ) || [];
-
+    } else if (currentStep.startsWith('picking_offer:')) {
+        console.log(`[PICKING_OFFER] User is picking offer for category: ${currentStep.split(':')[1]}`);
+        const selectedCategory = currentStep.split(':')[1];
+        const { data: allOffers } = await supabase.from("offers").select(`id, offer_title, wallet_deduction_amount, vendors!inner (business_category)`).eq("offer_status", "Active").ilike("city", `%${userCity}%`);
+        const offers = allOffers?.filter(o => o.vendors?.business_category?.trim().toLowerCase() === selectedCategory.toLowerCase()) || [];
+        
         let selectedOffer = null;
-        const userInput = text.trim();
-
-        if (offers.length > 0) {
-            if (!isNaN(userInput)) {
-                const index = parseInt(userInput) - 1;
-                if (index >= 0 && index < offers.length) {
-                    selectedOffer = offers[index];
-                }
-            } else {
-                selectedOffer = offers.find(o => o.offer_title.trim().toLowerCase() === userInput.toLowerCase());
-            }
+        if (!isNaN(text.trim())) {
+            const index = parseInt(text.trim()) - 1;
+            if (index >= 0 && index < offers.length) selectedOffer = offers[index];
+        } else {
+            selectedOffer = offers.find(o => o.offer_title.trim().toLowerCase() === text.trim().toLowerCase());
         }
 
         if (!selectedOffer) {
-            if (offers.length === 0) {
-                await sendWhatsAppMessage(from, "The offers for this category are no longer available 😔. Type MENU to browse others.");
-                await updateUser(from, { current_step: 'completed' });
-            } else {
-                await sendWhatsAppMessage(from, "Please reply with a valid offer number or name from the list above 👆\n(Or type MENU to go back)");
-            }
+            await sendWhatsAppMessage(from, "Please reply with a valid offer number or name from the list above 👆\n(Or type MENU to go back)");
             return res.status(200).send("INVALID_SELECTION");
         }
 
         await updateUser(from, { current_step: `confirming_claim:${selectedOffer.id}` });
-        const reply = `📢 *Confirm Claim?*\n\n🎁 Offer: ${selectedOffer.offer_title}\n💰 Wallet Deduction: ₹${selectedOffer.wallet_deduction_amount}\n\nReply *YES* to confirm!`;
-        await sendWhatsAppMessage(from, reply);
+        await sendWhatsAppMessage(from, `📢 *Confirm Claim?*\n\n🎁 Offer: ${selectedOffer.offer_title}\n💰 Wallet Deduction: ₹${selectedOffer.wallet_deduction_amount}\n\nReply *YES* to confirm!`);
         return res.status(200).send("CONFIRM_CLAIM_SENT");
 
-    } else if (user.current_step === 'picking_category') {
-        // 3. Handle Picking Category
-        console.log("Entering picking_category logic...");
-        const { data: activeOffers } = await supabase
-            .from("offers")
-            .select("vendors!inner(business_category)")
-            .eq("offer_status", "Active")
-            .ilike("city", `%${userCity}%`);
-        
+    } else if (currentStep === 'picking_category') {
+        const { data: activeOffers } = await supabase.from("offers").select("vendors!inner(business_category)").eq("offer_status", "Active").ilike("city", `%${userCity}%`);
         const uniqueCategories = [...new Set(activeOffers?.map(o => o.vendors?.business_category?.trim().toUpperCase()).filter(Boolean) || [])].sort();
         let selectedCategory = text.trim();
 
         if (!isNaN(selectedCategory)) {
             const index = parseInt(selectedCategory) - 1;
-            if (index >= 0 && index < uniqueCategories.length) {
-                selectedCategory = uniqueCategories[index];
-            }
+            if (index >= 0 && index < uniqueCategories.length) selectedCategory = uniqueCategories[index];
         } else {
             const matched = uniqueCategories.find(c => c.toLowerCase() === selectedCategory.toLowerCase());
             if (matched) selectedCategory = matched;
         }
 
-        const { data: allOffers } = await supabase
-            .from("offers")
-            .select(`id, offer_title, offer_description, discount_type, discount_value, vendors!inner(business_name, business_category)`)
-            .eq("offer_status", "Active")
-            .ilike("city", `%${userCity}%`);
-
-        const offers = allOffers?.filter(o => 
-            o.vendors?.business_category?.trim().toLowerCase() === selectedCategory.toLowerCase()
-        ) || [];
+        const { data: allOffers } = await supabase.from("offers").select(`id, offer_title, offer_description, discount_type, discount_value, vendors!inner(business_name, business_category)`).eq("offer_status", "Active").ilike("city", `%${userCity}%`);
+        const offers = allOffers?.filter(o => o.vendors?.business_category?.trim().toLowerCase() === selectedCategory.toLowerCase()) || [];
 
         if (offers.length === 0) {
             await sendWhatsAppMessage(from, `Sorry, I couldn't find offers for "${selectedCategory}" in ${userCity} 😊\nType MENU to see other categories.`);
@@ -282,30 +236,17 @@ exports.receiveMessage = async (req, res) => {
         return res.status(200).send("OFFER_LIST_SENT");
 
     } else {
-        // --- KEYWORD FALLBACKS ---
-
-        // Offers Flow (Start)
+        // Fallbacks
         if (lowerMessage === 'offers' || lowerMessage === '1' || lowerMessage === 'categories' || lowerMessage === '3') {
-            const { data: activeOffers } = await supabase
-                .from("offers")
-                .select(`vendors!inner (business_category)`)
-                .eq("offer_status", "Active")
-                .ilike("city", `%${userCity}%`);
-
+            const { data: activeOffers } = await supabase.from("offers").select(`vendors!inner (business_category)`).eq("offer_status", "Active").ilike("city", `%${userCity}%`);
             if (!activeOffers || activeOffers.length === 0) {
                 await sendWhatsAppMessage(from, `No offers available in ${userCity} currently 😊`);
                 return res.status(200).send("NO_OFFERS");
             }
-
-            // Deduplicate and Sort Categories for better UI
             const uniqueCategories = [...new Set(activeOffers.map(o => o.vendors?.business_category?.trim().toUpperCase()).filter(Boolean))].sort();
-            
             let reply = `📂 *Available Categories in ${userCity}:*\n\n`;
-            uniqueCategories.forEach((cat, index) => { 
-                reply += `${index + 1}. ${cat}\n`; 
-            });
+            uniqueCategories.forEach((cat, index) => { reply += `${index + 1}. ${cat}\n`; });
             reply += `\nReply with category name or number!`;
-            
             await sendWhatsAppMessage(from, reply);
             await updateUser(from, { current_step: 'picking_category' });
             return res.status(200).send("CATEGORIES_SENT");
