@@ -11,6 +11,7 @@ const customerRoutes = require('./routes/customerRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const walletRoutes = require('./routes/walletRoutes');
 const webhookRoutes = require("./routes/webhookRoutes");
+const claimRoutes = require("./routes/claimRoutes");
 
 const app = express();
 
@@ -24,6 +25,7 @@ app.use('/api/vendor', vendorRoutes);
 app.use('/api/customer', customerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/wallet', walletRoutes);
+app.use('/api', claimRoutes); // Mounts /api/claim-offer
 app.use("/webhook", webhookRoutes);
 
 app.get('/', (req, res) => {
