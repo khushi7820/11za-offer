@@ -258,7 +258,7 @@ exports.receiveMessage = async (req, res) => {
 
         const { data: allOffers } = await supabase
             .from("offers")
-            .select(`id, offer_title, vendors!inner(business_name, business_category)`)
+            .select(`id, offer_title, offer_description, discount_type, discount_value, vendors!inner(business_name, business_category)`)
             .eq("offer_status", "Active")
             .ilike("city", `%${userCity}%`);
 
@@ -272,7 +272,8 @@ exports.receiveMessage = async (req, res) => {
         } else {
             let reply = `🎁 *${selectedCategory} Offers:*\n\n`;
             offers.forEach((offer, index) => {
-                reply += `${index + 1}. *${offer.offer_title}*\n📝 ${offer.offer_description || 'No description available'}\n🏪 ${offer.vendors?.business_name || ''}\n\n`;
+                const desc = offer.offer_description ? `📝 ${offer.offer_description}` : `📝 ${offer.discount_value || 'Special Offer'} (${offer.discount_type || 'Discount'})`;
+                reply += `${index + 1}. *${offer.offer_title}*\n${desc}\n🏪 ${offer.vendors?.business_name || ''}\n\n`;
             });
             reply += `Reply with the offer *number* or *name*!`;
             await sendWhatsAppMessage(from, reply);
