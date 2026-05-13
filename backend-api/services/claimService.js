@@ -16,10 +16,20 @@ exports.processClaim = async ({ customer_id, offer_id, mobile_number }) => {
             .single();
 
         if (offerError || !offer) {
-            throw new Error("Offer not found");
+            return { success: false, message: "Offer not found 🔍" };
         }
 
-        // 2. Check for duplicate claim
+        // 2. Status & Expiry Check
+        if (offer.offer_status !== 'Active') {
+            return { success: false, message: "This offer is no longer active 🛑" };
+        }
+
+        const today = new Date().toISOString().split('T')[0];
+        if (offer.validity_end && offer.validity_end < today) {
+            return { success: false, message: "This offer has expired ⏰" };
+        }
+
+        // 3. Check for duplicate claim
         // We check by customer_id if available, otherwise by mobile_number
         let query = supabase.from("coupon_claims").select("*").eq("offer_id", offer_id);
         if (customer_id) {
