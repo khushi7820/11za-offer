@@ -1,6 +1,7 @@
 const supabase = require('../config/supabaseClient');
 const bcrypt = require('bcryptjs');
 const generateToken = require('../utils/generateToken');
+const redemptionService = require('../services/redemptionService');
 
 
 exports.vendorSignup = async (req, res) => {
@@ -338,84 +339,16 @@ exports.verifyCoupon = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Coupon code and Vendor ID are required' });
         }
 
-        // --- STEP 1: Try finding in traditional 'coupons' table ---
-        const { data: traditionalCoupon } = await supabase
-            .from('coupons')
-            .select('*, offers(*)')
-            .eq('coupon_code', coupon_code)
-            .eq('vendor_id', vendor_id)
-            .maybeSingle();
-
-        if (traditionalCoupon) {
-            if (traditionalCoupon.coupon_status === 'Used') {
-                return res.status(400).json({ success: false, message: 'Coupon Already Used' });
-            }
-
-            const { error: updateError } = await supabase
-                .from('coupons')
-                .update({
-                    coupon_status: 'Used',
-                    redeem_date: new Date().toISOString()
-                })
-                .eq('coupon_code', coupon_code);
-
-            if (updateError) throw updateError;
-
-            return res.json({ success: true, message: 'Traditional Coupon Redeemed Successfully ✅' });
-        }
-
-        // --- STEP 2: Fallback to 'coupon_claims' (WhatsApp Flow) ---
-        const { data: claim, error: claimError } = await supabase
-            .from("coupon_claims")
-            .select(`
-                *,
-                offers (
-                    id,
-                    vendor_id,
-                    offer_title,
-                    wallet_deduction_amount
-                )
-            `)
-            .eq("coupon_code", coupon_code)
-            .maybeSingle();
-
-        if (claimError || !claim) {
-            return res.status(404).json({ success: false, message: 'Invalid Coupon Code ❌' });
-        }
-
-        // Check if this coupon belongs to THIS vendor
-        if (claim.offers?.vendor_id !== vendor_id) {
-            return res.status(403).json({ success: false, message: 'This coupon belongs to another vendor 🚫' });
-        }
-
-        if (claim.redeemed) {
-            return res.status(400).json({ success: false, message: 'Coupon already redeemed ⚠️' });
-        }
-
-        // Get customer_id for transaction
-        const { data: user } = await supabase
-            .from("whatsapp_users")
-            .select("customer_id")
-            .eq("phone_number", claim.mobile_number)
-            .single();
-
-        // Mark as Redeemed
-        const { error: updateError } = await supabase
-            .from("coupon_claims")
-            .update({
-                redeemed: true,
-                claim_status: 'redeemed',
-                redeemed_at: new Date().toISOString()
-            })
-            .eq("coupon_code", coupon_code);
-
-        if (updateError) throw updateError;
-
-        return res.json({
-            success: true,
-            message: `Coupon Redeemed: ${claim.offers?.offer_title} ✅`
+        const result = await redemptionService.redeemCoupon({
+            coupon_code,
+            vendor_id
         });
 
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+
+        return res.json(result);
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -541,54 +474,16 @@ exports.redeemWhatsAppCoupon = async (req, res) => {
             return res.status(400).json({ success: false, message: "Coupon code and Vendor ID are required" });
         }
 
-        // 1. Verify Coupon in coupon_claims table
-        const { data: claim, error } = await supabase
-            .from("coupon_claims")
-            .select(`
-                *,
-                offers (
-                    id,
-                    offer_title,
-                    wallet_deduction_amount
-                )
-            `)
-            .eq("coupon_code", coupon_code)
-            .maybeSingle();
-
-        if (error || !claim) {
-            return res.status(404).json({ success: false, message: "Invalid Coupon Code ❌" });
-        }
-
-        // 2. Check if already redeemed
-        if (claim.redeemed) {
-            return res.status(400).json({ success: false, message: "Coupon already redeemed ⚠️" });
-        }
-
-        // 3. Get Customer details from whatsapp_users
-        const { data: user } = await supabase
-            .from("whatsapp_users")
-            .select("customer_id")
-            .eq("phone_number", claim.mobile_number)
-            .single();
-
-        // 4. Mark as Redeemed (Update both redeemed boolean and claim_status)
-        const { error: updateError } = await supabase
-            .from("coupon_claims")
-            .update({
-                redeemed: true,
-                claim_status: 'redeemed',
-                redeemed_at: new Date().toISOString()
-            })
-            .eq("coupon_code", coupon_code);
-
-        if (updateError) throw updateError;
-
-        res.json({
-            success: true,
-            message: "Coupon Redeemed Successfully ✅",
-            offer_title: claim.offers?.offer_title
+        const result = await redemptionService.redeemCoupon({
+            coupon_code,
+            vendor_id
         });
 
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+
+        return res.json(result);
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
