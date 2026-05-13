@@ -22,6 +22,7 @@ exports.verifyWebhook = (req, res) => {
 
 exports.receiveMessage = async (req, res) => {
   try {
+    const entry = req.body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
     const rawFrom = String(entry?.from || req.body?.from || req.body?.sender);
     const cleanNumber = rawFrom.replace("@s.whatsapp.net", "").replace("+", "").trim();
     const text = entry?.text?.body || req.body?.content?.text || req.body?.UserResponse || req.body?.text || req.body?.message;
