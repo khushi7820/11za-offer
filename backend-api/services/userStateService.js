@@ -35,15 +35,16 @@ const getOrCreateUser = async (phone_number) => {
 const updateUser = async (phone_number, updates) => {
     const phoneNumberStr = String(phone_number);
     try {
-        const { error } = await supabase
+        const { data, error, count } = await supabase
             .from('whatsapp_users')
             .update(updates)
             .eq('phone_number', phoneNumberStr);
 
         if (error) throw error;
+        console.log(`[DB_UPDATE] Success for ${phoneNumberStr} | Updates:`, updates);
         return true;
     } catch (error) {
-        console.error("Update User Error:", error.message);
+        console.error(`[DB_UPDATE_ERROR] ${phoneNumberStr}:`, error.message);
         return false;
     }
 };

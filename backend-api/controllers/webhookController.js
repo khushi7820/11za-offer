@@ -122,8 +122,7 @@ exports.receiveMessage = async (req, res) => {
         }
 
         if (!selectedOffer) {
-            await sendWhatsAppMessage(cleanNumber, "Please reply with a valid offer number or name from the list above 👆\n(Or type MENU to go back)");
-            return res.status(200).send("INVALID_OFFER");
+            return res.status(200).send("INVALID_OFFER_SILENT");
         }
 
         await updateUser(cleanNumber, { current_step: `confirming_claim:${selectedOffer.id}` });
