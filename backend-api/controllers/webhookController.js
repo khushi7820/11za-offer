@@ -147,17 +147,18 @@ exports.receiveMessage = async (req, res) => {
             reply += `${index + 1}. ${cat}\n`; 
         });
         reply += `\nReply with category name or number!`;
-        
+        console.log(`[CITY_CHANGE] New City: ${newCity} | User: ${from}`);
         await sendWhatsAppMessage(from, reply);
         await updateUser(from, { current_step: 'picking_category' });
+        console.log(`[STATE_TRANSITION] picking_category SET for ${from}`);
         return res.status(200).send("OFFERS_SHOWN_AFTER_CITY_CHANGE");
 
     } else if (currentStep.startsWith('confirming_claim:')) {
-        // 1. Handle Claim Confirmation (HIGHEST PRIORITY)
-        console.log(`[CONFIRMING_CLAIM] Processing: "${lowerMessage}" for state ${currentStep}`);
+        console.log(`[CRITICAL_DEBUG] currentStep: "${currentStep}" | Message: "${lowerMessage}"`);
         
         if (lowerMessage === 'yes' || lowerMessage === 'confirm') {
             const offerId = currentStep.split(':')[1];
+            console.log(`[CLAIM_PROCESS] Attempting claim for Offer ID: ${offerId}`);
             
             const claimResult = await claimService.processClaim({
                 customer_id: freshUser.customer_id,
@@ -176,13 +177,14 @@ exports.receiveMessage = async (req, res) => {
                 return res.status(200).send("CLAIM_FAILED");
             }
         } else {
+            console.log(`[CLAIM_CANCEL] User sent: "${lowerMessage}" during confirmation`);
             await sendWhatsAppMessage(from, "Claim cancelled ❌. Type MENU to browse again.");
             await updateUser(from, { current_step: 'completed' });
             return res.status(200).send("CLAIM_CANCELLED");
         }
 
     } else if (currentStep.startsWith('picking_offer:')) {
-        console.log(`[PICKING_OFFER] User is picking offer for category: ${currentStep.split(':')[1]}`);
+        console.log(`[CRITICAL_DEBUG] currentStep: "${currentStep}" | Message: "${lowerMessage}"`);
         const selectedCategory = currentStep.split(':')[1];
         const { data: allOffers } = await supabase.from("offers").select(`id, offer_title, wallet_deduction_amount, vendors!inner (business_category)`).eq("offer_status", "Active").ilike("city", `%${userCity}%`);
         const offers = allOffers?.filter(o => o.vendors?.business_category?.trim().toLowerCase() === selectedCategory.toLowerCase()) || [];
@@ -200,11 +202,13 @@ exports.receiveMessage = async (req, res) => {
             return res.status(200).send("INVALID_SELECTION");
         }
 
+        console.log(`[OFFER_SELECTED] Updating state to confirming_claim:${selectedOffer.id}`);
         await updateUser(from, { current_step: `confirming_claim:${selectedOffer.id}` });
         await sendWhatsAppMessage(from, `📢 *Confirm Claim?*\n\n🎁 Offer: ${selectedOffer.offer_title}\n💰 Wallet Deduction: ₹${selectedOffer.wallet_deduction_amount}\n\nReply *YES* to confirm!`);
         return res.status(200).send("CONFIRM_CLAIM_SENT");
 
     } else if (currentStep === 'picking_category') {
+        console.log(`[CRITICAL_DEBUG] currentStep: "${currentStep}" | Message: "${lowerMessage}"`);
         const { data: activeOffers } = await supabase.from("offers").select("vendors!inner(business_category)").eq("offer_status", "Active").ilike("city", `%${userCity}%`);
         const uniqueCategories = [...new Set(activeOffers?.map(o => o.vendors?.business_category?.trim().toUpperCase()).filter(Boolean) || [])].sort();
         let selectedCategory = text.trim();
