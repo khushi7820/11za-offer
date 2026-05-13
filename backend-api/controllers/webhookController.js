@@ -112,8 +112,6 @@ exports.receiveMessage = async (req, res) => {
         return res.status(200).send("MENU_SENT");
     }
 
-    // --- DETERMINISTIC FLOW (if-else chain) ---
-
     if (user.current_step === 'awaiting_new_city') {
         const newCity = text.trim();
         
@@ -131,8 +129,30 @@ exports.receiveMessage = async (req, res) => {
                 .eq("id", user.customer_id);
         }
 
-        await sendWhatsAppMessage(from, `✅ City updated to *${newCity}*! Type "offers" to see deals in your new location. 😊`);
-        return res.status(200).send("CITY_UPDATED");
+        await sendWhatsAppMessage(from, `✅ City updated to *${newCity}*! Fetching the best deals for you... 🎁`);
+        
+        // 3. Immediately show offers for the new city
+        const { data: activeOffers } = await supabase
+            .from("offers")
+            .select(`vendors!inner (business_category)`)
+            .eq("offer_status", "Active")
+            .ilike("city", `%${newCity}%`);
+
+        if (!activeOffers || activeOffers.length === 0) {
+            await sendWhatsAppMessage(from, `Currently, there are no active offers in ${newCity} 😊. Type MENU to see other options.`);
+            return res.status(200).send("NO_OFFERS_NEW_CITY");
+        }
+
+        const uniqueCategories = [...new Set(activeOffers.map(o => o.vendors?.business_category?.trim().toUpperCase()).filter(Boolean))].sort();
+        let reply = `📂 *Available Categories in ${newCity}:*\n\n`;
+        uniqueCategories.forEach((cat, index) => { 
+            reply += `${index + 1}️⃣ ${cat}\n`; 
+        });
+        reply += `\nReply with category name or number!`;
+        
+        await sendWhatsAppMessage(from, reply);
+        await updateUser(from, { current_step: 'picking_category' });
+        return res.status(200).send("OFFERS_SHOWN_AFTER_CITY_CHANGE");
 
     } else if (user.current_step.startsWith('confirming_claim:')) {
         // 1. Handle Claim Confirmation (HIGHEST PRIORITY)
@@ -312,7 +332,8 @@ exports.receiveMessage = async (req, res) => {
         }
 
         // Change City Flow (Manual Trigger)
-        if (lowerMessage === 'change city' || lowerMessage === 'update city' || lowerMessage === 'edit city') {
+        const changeCityKeywords = ['change city', 'update city', 'edit city', 'change ciity', 'change citi', 'set city'];
+        if (changeCityKeywords.some(k => lowerMessage.includes(k))) {
             await sendWhatsAppMessage(from, "Which city would you like to see offers for? 📍");
             await updateUser(from, { current_step: 'awaiting_new_city' });
             return res.status(200).send("AWAITING_NEW_CITY");
