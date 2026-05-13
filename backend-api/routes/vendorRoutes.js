@@ -1,21 +1,24 @@
 const express = require('express');
 const router = express.Router();
 const vendorController = require('../controllers/vendorController');
-const authMiddleware = require('../middleware/authMiddleware');
+const { verifyToken, authorizeRoles } = require('../middleware/authMiddleware');
 
-
+// Public Routes
 router.post('/signup', vendorController.vendorSignup);
 router.post('/login', vendorController.vendorLogin);
 
-// Protected Routes
-router.post('/create-offer', authMiddleware, vendorController.createOffer);
-router.get('/my-offers/:vendor_id', authMiddleware, vendorController.getVendorOffers);
-router.get('/dashboard-stats/:vendor_id', authMiddleware, vendorController.dashboardStats);
-router.post('/verify-coupon', authMiddleware, vendorController.verifyCoupon);
-router.post('/redeem-coupon', authMiddleware, vendorController.redeemWhatsAppCoupon);
-router.delete('/delete-offer/:id', authMiddleware, vendorController.deleteOffer);
-router.put('/update-offer/:id', authMiddleware, vendorController.updateOffer);
-router.get('/activity/:vendor_id', authMiddleware, vendorController.getVendorActivity);
-router.get('/claims/:vendor_id', authMiddleware, vendorController.getVendorClaims);
+// Protected Routes (Vendor & Admin)
+router.use(verifyToken);
+router.use(authorizeRoles('vendor', 'admin'));
+
+router.post('/create-offer', vendorController.createOffer);
+router.get('/my-offers/:vendor_id', vendorController.getVendorOffers);
+router.get('/dashboard-stats/:vendor_id', vendorController.dashboardStats);
+router.post('/verify-coupon', vendorController.verifyCoupon);
+router.post('/redeem-coupon', vendorController.redeemWhatsAppCoupon);
+router.delete('/delete-offer/:id', vendorController.deleteOffer);
+router.put('/update-offer/:id', vendorController.updateOffer);
+router.get('/activity/:vendor_id', vendorController.getVendorActivity);
+router.get('/claims/:vendor_id', vendorController.getVendorClaims);
 
 module.exports = router;

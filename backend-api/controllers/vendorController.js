@@ -140,7 +140,7 @@ exports.vendorLogin = async (req, res) => {
             });
         }
 
-        const token = generateToken(vendor);
+        const token = generateToken(vendor, 'vendor');
 
         res.json({
             success: true,

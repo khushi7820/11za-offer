@@ -1,11 +1,14 @@
 const jwt = require("jsonwebtoken");
 
-const generateToken = (vendor) => {
+/**
+ * Generate JWT Token for any user type
+ */
+const generateToken = (user, role) => {
   return jwt.sign(
     {
-      id: vendor.id,
-      email: vendor.email,
-      role: vendor.role || "vendor"
+      id: user.id,
+      email: user.email,
+      role: role
     },
     process.env.JWT_SECRET,
     {

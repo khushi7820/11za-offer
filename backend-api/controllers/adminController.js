@@ -1,4 +1,5 @@
 const supabase = require('../config/supabaseClient');
+const generateToken = require('../utils/generateToken');
 
 exports.adminLogin = async (req, res) => {
     try {
@@ -18,10 +19,17 @@ exports.adminLogin = async (req, res) => {
             });
         }
 
+        const token = generateToken(data, 'admin');
+
         res.json({
             success: true,
             message: 'Admin Login Successful',
-            admin: data
+            token,
+            admin: {
+                id: data.id,
+                name: data.admin_name,
+                email: data.email
+            }
         });
     } catch (err) {
         res.status(500).json({
