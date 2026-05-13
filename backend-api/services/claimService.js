@@ -1,5 +1,5 @@
 const supabase = require('../config/supabaseClient');
-const walletController = require('../controllers/walletController');
+const walletService = require('../services/walletService');
 
 /**
  * Shared Claim Logic for WhatsApp and Dashboard
@@ -39,12 +39,13 @@ exports.processClaim = async ({ customer_id, offer_id, mobile_number }) => {
         if (deductionAmount > 0) {
             if (!customer_id) throw new Error("Customer record missing for wallet deduction");
             
-            const deduction = await walletController.deductWallet(
+            const deduction = await walletService.addTransaction({
                 customer_id,
-                deductionAmount,
-                `Claimed: ${offer.offer_title}`,
-                offer_id
-            );
+                amount: -deductionAmount,
+                type: 'claim_deduction',
+                description: `Claimed: ${offer.offer_title}`,
+                reference_id: offer_id
+            });
 
             if (!deduction.success) {
                 return { success: false, message: deduction.message || "Insufficient wallet balance" };

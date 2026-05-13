@@ -2,6 +2,7 @@ const { sendWhatsAppMessage } = require("../services/whatsappService");
 const { getOrCreateUser, updateUser } = require("../services/userStateService");
 const { generateAIResponse } = require("../services/aiService");
 const claimService = require("../services/claimService");
+const walletService = require("../services/walletService");
 const supabase = require("../config/supabaseClient");
 
 exports.verifyWebhook = (req, res) => {
@@ -67,13 +68,13 @@ exports.receiveMessage = async (req, res) => {
                 return await sendWhatsAppMessage(from, "Something went wrong. Please try again later. 😔");
             }
 
-            // 2. Create Wallet with welcome balance
-            await supabase
-                .from("wallets")
-                .insert([{
-                    customer_id: customer.id,
-                    balance: 100
-                }]);
+            // 2. Create Wallet with welcome bonus transaction
+            await walletService.addTransaction({
+                customer_id: customer.id,
+                amount: 100,
+                type: 'welcome_bonus',
+                description: 'Welcome Bonus 🎉'
+            });
 
             // 3. Link WhatsApp user and complete onboarding
             await updateUser(from, { 
