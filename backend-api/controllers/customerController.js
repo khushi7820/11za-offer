@@ -2,6 +2,7 @@ const supabase = require('../config/supabaseClient');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const walletController = require('./walletController');
+const claimService = require('../services/claimService');
 
 // 1. Secure Customer Registration
 exports.customerRegister = async (req, res) => {
@@ -126,65 +127,32 @@ exports.browseOffers = async (req, res) => {
 
 exports.claimCoupon = async (req, res) => {
     try {
-        const { customer_id, vendor_id, offer_id } = req.body;
+        const { customer_id, offer_id, mobile_number } = req.body;
 
-        // 1. Fetch Offer to get deduction amount
-        const { data: offer, error: offerError } = await supabase
-            .from('offers')
-            .select('wallet_deduction_amount, offer_title')
-            .eq('id', offer_id)
-            .single();
-
-        if (offerError || !offer) {
-            return res.status(404).json({ success: false, message: 'Offer not found' });
+        if (!customer_id || !offer_id) {
+            return res.status(400).json({ success: false, message: 'customer_id and offer_id are required' });
         }
 
-        const deduction_amount = offer.wallet_deduction_amount || 0;
+        const claimResult = await claimService.processClaim({
+            customer_id,
+            offer_id,
+            mobile_number: mobile_number || null // Dashboard might provide mobile_number
+        });
 
-        // 2. Try to deduct from wallet
-        const deduction = await walletController.deductWallet(
-            customer_id, 
-            deduction_amount, 
-            `Claimed Offer: ${offer.offer_title}`,
-            null
-        );
-
-        if (!deduction.success) {
+        if (!claimResult.success) {
             return res.status(400).json({
-                success: false,
-                message: deduction.message || 'Insufficient balance'
-            });
-        }
-
-        // 3. Generate Coupon Code
-        const couponCode = '11ZA' + Math.floor(100000 + Math.random() * 900000);
-
-        // 4. Save to coupons table
-        const { data: coupon, error: couponError } = await supabase
-            .from('coupons')
-            .insert([
-                {
-                    customer_id,
-                    vendor_id,
-                    offer_id,
-                    coupon_code: couponCode,
-                    coupon_status: 'Active'
-                }
-            ])
-            .select();
-
-        if (couponError) {
-            return res.status(400).json({
-                success: false,
-                message: couponError.message
+                success: claimResult.success,
+                message: claimResult.message
             });
         }
 
         res.json({
             success: true,
-            message: 'Coupon Claimed Successfully. Wallet deducted.',
-            coupon: coupon[0],
-            new_balance: deduction.balance_after
+            message: claimResult.message,
+            coupon: {
+                coupon_code: claimResult.couponCode,
+                offer_title: claimResult.offerTitle
+            }
         });
     } catch (err) {
         res.status(500).json({
@@ -199,10 +167,10 @@ exports.getMyCoupons = async (req, res) => {
         const { customer_id } = req.params;
 
         const { data, error } = await supabase
-            .from('coupons')
-            .select('*')
+            .from('coupon_claims')
+            .select('*, offers(*, vendors(*))')
             .eq('customer_id', customer_id)
-            .order('created_at', { ascending: false });
+            .order('claimed_at', { ascending: false });
 
         if (error) {
             return res.status(400).json({
