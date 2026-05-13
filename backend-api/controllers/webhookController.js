@@ -120,11 +120,11 @@ exports.receiveMessage = async (req, res) => {
     if (currentStep === 'awaiting_new_city') {
         const newCity = text.trim();
         await updateUser(from, { city: newCity, current_step: 'completed' });
-        if (user.customer_id) {
+        if (freshUser.customer_id) {
             await supabase
                 .from("customers")
                 .update({ city: newCity })
-                .eq("id", user.customer_id);
+                .eq("id", freshUser.customer_id);
         }
 
         await sendWhatsAppMessage(from, `✅ City updated to *${newCity}*! Fetching the best deals for you... 🎁`);
@@ -152,15 +152,15 @@ exports.receiveMessage = async (req, res) => {
         await updateUser(from, { current_step: 'picking_category' });
         return res.status(200).send("OFFERS_SHOWN_AFTER_CITY_CHANGE");
 
-    } else if (user.current_step.startsWith('confirming_claim:')) {
+    } else if (currentStep.startsWith('confirming_claim:')) {
         // 1. Handle Claim Confirmation (HIGHEST PRIORITY)
-        console.log(`Entering confirming_claim logic for user ${from} with message ${lowerMessage}`);
+        console.log(`[CONFIRMING_CLAIM] Processing: "${lowerMessage}" for state ${currentStep}`);
         
         if (lowerMessage === 'yes' || lowerMessage === 'confirm') {
-            const offerId = user.current_step.split(':')[1];
+            const offerId = currentStep.split(':')[1];
             
             const claimResult = await claimService.processClaim({
-                customer_id: user.customer_id,
+                customer_id: freshUser.customer_id,
                 offer_id: offerId,
                 mobile_number: from
             });
@@ -254,7 +254,7 @@ exports.receiveMessage = async (req, res) => {
 
         // Wallet Flow
         if (lowerMessage === 'wallet' || lowerMessage === '2') {
-            const { data: wallet } = await supabase.from("wallets").select("balance").eq("customer_id", user.customer_id).maybeSingle();
+            const { data: wallet } = await supabase.from("wallets").select("balance").eq("customer_id", freshUser.customer_id).maybeSingle();
             const balance = wallet ? wallet.balance : 0;
             await sendWhatsAppMessage(from, `💰 Wallet Balance: ₹${balance}`);
             return res.status(200).send("WALLET_SENT");
