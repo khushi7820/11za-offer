@@ -1,5 +1,6 @@
 const supabase = require('../config/supabaseClient');
 const generateToken = require('../utils/generateToken');
+const analyticsService = require('../services/analyticsService');
 
 exports.adminLogin = async (req, res) => {
     try {
@@ -125,5 +126,67 @@ exports.rejectVendor = async (req, res) => {
             message: err.message
         });
 
+    }
+};
+
+// Analytics Endpoints
+exports.getDashboardStats = async (req, res) => {
+    try {
+        const stats = await analyticsService.getGlobalStats();
+        res.json(stats);
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+// Admin Controls
+exports.toggleVendorStatus = async (req, res) => {
+    try {
+        const { vendor_id, status } = req.body; // status: 'Approved', 'Blocked'
+        const { data, error } = await supabase
+            .from('vendors')
+            .update({ approval_status: status })
+            .eq('id', vendor_id)
+            .select();
+
+        if (error) throw error;
+        res.json({ success: true, message: `Vendor status updated to ${status}`, vendor: data });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+exports.disableOffer = async (req, res) => {
+    try {
+        const { offer_id } = req.body;
+        const { error } = await supabase
+            .from('offers')
+            .update({ offer_status: 'Disabled' })
+            .eq('id', offer_id);
+
+        if (error) throw error;
+        res.json({ success: true, message: 'Offer disabled by Admin' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+exports.getSystemActivity = async (req, res) => {
+    try {
+        const { data: claims } = await supabase
+            .from('coupon_claims')
+            .select('*, offers(offer_title, vendors(business_name))')
+            .order('created_at', { ascending: false })
+            .limit(50);
+
+        const { data: transactions } = await supabase
+            .from('wallet_transactions')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(50);
+
+        res.json({ success: true, recent_claims: claims, recent_transactions: transactions });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
     }
 };

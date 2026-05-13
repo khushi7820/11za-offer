@@ -10,8 +10,15 @@ router.post('/login', adminController.adminLogin);
 router.use(verifyToken);
 router.use(authorizeRoles('admin'));
 
+// Vendor Management
 router.get('/all-vendors', adminController.getAllVendors);
 router.post('/approve-vendor', adminController.approveVendor);
 router.post('/reject-vendor', adminController.rejectVendor);
+router.post('/toggle-vendor-status', adminController.toggleVendorStatus);
+
+// Analytics & Monitoring
+router.get('/dashboard-stats', adminController.getDashboardStats);
+router.get('/system-activity', adminController.getSystemActivity);
+router.post('/disable-offer', adminController.disableOffer);
 
 module.exports = router;
