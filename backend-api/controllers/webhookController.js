@@ -106,7 +106,7 @@ exports.receiveMessage = async (req, res) => {
             await sendWhatsAppMessage(from, "Welcome to 11za 🎉\nWhat is your name? 😊");
             return res.status(200).send("RESET_DONE");
         }
-        const menuMsg = `🏠 11za Menu\n\n1️⃣ Offers\n2️⃣ Wallet\n3️⃣ Categories\n4️⃣ My Claims\n5️⃣ Help`;
+        const menuMsg = `🏠 11za Menu\n\n1️⃣ Offers\n2️⃣ Wallet\n3️⃣ Categories\n4️⃣ My Claims\n5️⃣ Help\n\n📍 Type "change city" to update your location.`;
         await sendWhatsAppMessage(from, menuMsg);
         await updateUser(from, { current_step: 'completed' });
         return res.status(200).send("MENU_SENT");
@@ -114,7 +114,27 @@ exports.receiveMessage = async (req, res) => {
 
     // --- DETERMINISTIC FLOW (if-else chain) ---
 
-    if (user.current_step.startsWith('confirming_claim:')) {
+    if (user.current_step === 'awaiting_new_city') {
+        const newCity = text.trim();
+        
+        // 1. Update whatsapp_users
+        await updateUser(from, { 
+            city: newCity,
+            current_step: 'completed'
+        });
+
+        // 2. Update linked customer record
+        if (user.customer_id) {
+            await supabase
+                .from("customers")
+                .update({ city: newCity })
+                .eq("id", user.customer_id);
+        }
+
+        await sendWhatsAppMessage(from, `✅ City updated to *${newCity}*! Type "offers" to see deals in your new location. 😊`);
+        return res.status(200).send("CITY_UPDATED");
+
+    } else if (user.current_step.startsWith('confirming_claim:')) {
         // 1. Handle Claim Confirmation (HIGHEST PRIORITY)
         console.log(`Entering confirming_claim logic for user ${from} with message ${lowerMessage}`);
         
@@ -289,6 +309,13 @@ exports.receiveMessage = async (req, res) => {
                 await sendWhatsAppMessage(from, reply);
             }
             return res.status(200).send("MY_CLAIMS_SENT");
+        }
+
+        // Change City Flow (Manual Trigger)
+        if (lowerMessage === 'change city' || lowerMessage === 'update city' || lowerMessage === 'edit city') {
+            await sendWhatsAppMessage(from, "Which city would you like to see offers for? 📍");
+            await updateUser(from, { current_step: 'awaiting_new_city' });
+            return res.status(200).send("AWAITING_NEW_CITY");
         }
     }
 
