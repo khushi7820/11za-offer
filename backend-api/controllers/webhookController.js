@@ -23,7 +23,7 @@ exports.verifyWebhook = (req, res) => {
 exports.receiveMessage = async (req, res) => {
   try {
     const entry = req.body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-    const from = entry?.from || req.body?.from || req.body?.sender;
+    const from = String(entry?.from || req.body?.from || req.body?.sender);
     const text = entry?.text?.body || req.body?.content?.text || req.body?.UserResponse || req.body?.text || req.body?.message;
 
     if (!from || !text) {
