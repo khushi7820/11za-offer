@@ -147,7 +147,7 @@ exports.receiveMessage = async (req, res) => {
         const uniqueCategories = [...new Set(activeOffers.map(o => o.vendors?.business_category?.trim().toUpperCase()).filter(Boolean))].sort();
         let reply = `📂 *Available Categories in ${newCity}:*\n\n`;
         uniqueCategories.forEach((cat, index) => { 
-            reply += `${index + 1}️⃣ ${cat}\n`; 
+            reply += `${index + 1}. ${cat}\n`; 
         });
         reply += `\nReply with category name or number!`;
         
@@ -243,7 +243,7 @@ exports.receiveMessage = async (req, res) => {
             .eq("offer_status", "Active")
             .ilike("city", `%${userCity}%`);
         
-        const uniqueCategories = [...new Set(activeOffers?.map(o => o.vendors?.business_category?.trim()).filter(Boolean) || [])];
+        const uniqueCategories = [...new Set(activeOffers?.map(o => o.vendors?.business_category?.trim().toUpperCase()).filter(Boolean) || [])].sort();
         let selectedCategory = text.trim();
 
         if (!isNaN(selectedCategory)) {
@@ -272,7 +272,7 @@ exports.receiveMessage = async (req, res) => {
         } else {
             let reply = `🎁 *${selectedCategory} Offers:*\n\n`;
             offers.forEach((offer, index) => {
-                reply += `${index + 1}️⃣ *${offer.offer_title}*\n📝 ${offer.offer_description || 'No description available'}\n🏪 ${offer.vendors.business_name}\n\n`;
+                reply += `${index + 1}. *${offer.offer_title}*\n📝 ${offer.offer_description || 'No description available'}\n🏪 ${offer.vendors?.business_name || ''}\n\n`;
             });
             reply += `Reply with the offer *number* or *name*!`;
             await sendWhatsAppMessage(from, reply);
@@ -301,8 +301,7 @@ exports.receiveMessage = async (req, res) => {
             
             let reply = `📂 *Available Categories in ${userCity}:*\n\n`;
             uniqueCategories.forEach((cat, index) => { 
-                const num = index + 1;
-                reply += `${num}️⃣ ${cat}\n`; 
+                reply += `${index + 1}. ${cat}\n`; 
             });
             reply += `\nReply with category name or number!`;
             
