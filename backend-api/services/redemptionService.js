@@ -59,7 +59,6 @@ exports.redeemCoupon = async ({ coupon_code, vendor_id }) => {
             .update({
                 redeemed: true,
                 redeemed_at: new Date().toISOString(),
-                redeemed_by_vendor: vendor_id,
                 claim_status: 'redeemed'
             })
             .eq("id", claim.id);
