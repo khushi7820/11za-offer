@@ -1,7 +1,5 @@
 const Groq = require("groq-sdk");
-
-// Use GROQ_API_KEY from environment variables
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+let groq;
 
 /**
  * Generate AI Response using Groq (Llama 3)
@@ -9,6 +7,15 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
  */
 async function generateAIResponse(message, userName = "User") {
     try {
+        if (!process.env.GROQ_API_KEY) {
+            console.warn("GROQ_API_KEY is missing. Falling back to default response.");
+            return "How can I help you today? 😊";
+        }
+        
+        if (!groq) {
+            groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+        }
+
         console.log(`Generating Groq AI response for ${userName}...`);
         
         const chatCompletion = await groq.chat.completions.create({

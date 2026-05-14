@@ -6,6 +6,10 @@ if (process.env.NODE_ENV !== 'production') {
     require('dotenv').config();
 }
 
+console.log("Starting 11za Backend in", process.env.NODE_ENV || 'development', "mode");
+console.log("JWT_SECRET set:", !!process.env.JWT_SECRET);
+console.log("SUPABASE_URL set:", !!process.env.SUPABASE_URL);
+
 const vendorRoutes = require('./routes/vendorRoutes');
 const customerRoutes = require('./routes/customerRoutes');
 const adminRoutes = require('./routes/adminRoutes');
@@ -14,8 +18,6 @@ const webhookRoutes = require("./routes/webhookRoutes");
 const claimRoutes = require("./routes/claimRoutes");
 
 const app = express();
-
-console.log("Starting 11za Backend in", process.env.NODE_ENV || 'development', "mode");
 
 app.use(cors());
 app.use(express.json());

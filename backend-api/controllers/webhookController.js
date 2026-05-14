@@ -21,15 +21,21 @@ exports.verifyWebhook = (req, res) => {
 };
 
 exports.receiveMessage = async (req, res) => {
+  // 1. Log EVERY request to help debug blank logs
+  console.log("--- INCOMING WEBHOOK ---");
+  console.log("Body Keys:", Object.keys(req.body || {}));
+  
   try {
     const entry = req.body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-    const rawFrom = String(entry?.from || req.body?.from || req.body?.sender);
-    const cleanNumber = rawFrom.replace("@s.whatsapp.net", "").replace("+", "").trim();
+    const rawFrom = entry?.from || req.body?.from || req.body?.sender;
     const text = entry?.text?.body || req.body?.content?.text || req.body?.UserResponse || req.body?.text || req.body?.message;
 
     if (!rawFrom || !text) {
+        console.log("Skipping: No sender or no text content. Body:", JSON.stringify(req.body));
         return res.status(200).send("NO_MESSAGE");
     }
+
+    const cleanNumber = String(rawFrom).replace("@s.whatsapp.net", "").replace("+", "").trim();
 
     const lowerMessage = text.toLowerCase().trim();
     
@@ -242,12 +248,33 @@ exports.receiveMessage = async (req, res) => {
     }
 
     if (lowerMessage === 'my claims' || lowerMessage === '4') {
-        const { data: claims } = await supabase.from("coupon_claims").select("*, offers(offer_title, vendors(business_name))").eq("mobile_number", cleanNumber);
-        if (!claims || claims.length === 0) {
+        const { data: claims, error } = await supabase.from("coupon_claims").select("*").eq("mobile_number", cleanNumber);
+        
+        if (error || !claims || claims.length === 0) {
             await sendWhatsAppMessage(cleanNumber, "No claims yet.");
         } else {
+            // Fetch offers and vendors manually
+            const offerIds = [...new Set(claims.map(c => c.offer_id))];
+            const vendorIds = [...new Set(claims.map(c => c.vendor_id))];
+            
+            let offersMap = {};
+            let vendorsMap = {};
+
+            if (offerIds.length > 0) {
+                const { data: offersData } = await supabase.from('offers').select('id, offer_title').in('id', offerIds);
+                offersData?.forEach(o => offersMap[o.id] = o.offer_title);
+            }
+            if (vendorIds.length > 0) {
+                const { data: vendorsData } = await supabase.from('vendors').select('id, business_name').in('id', vendorIds);
+                vendorsData?.forEach(v => vendorsMap[v.id] = v.business_name);
+            }
+
             let reply = `🎟 *Your Coupons:*\n\n`;
-            claims.forEach((c) => { reply += `🎁 ${c.offers?.offer_title}\n🏪 ${c.offers?.vendors?.business_name}\nStatus: ${c.redeemed ? "Redeemed ✅" : "Claimed 🎟"}\n\n`; });
+            claims.forEach((c) => { 
+                const offerTitle = offersMap[c.offer_id] || 'Unknown Offer';
+                const vendorName = vendorsMap[c.vendor_id] || 'Unknown Vendor';
+                reply += `🎁 ${offerTitle}\n🏪 ${vendorName}\nStatus: ${c.claim_status || (c.redeemed ? "Redeemed ✅" : "Claimed 🎟")}\n\n`; 
+            });
             await sendWhatsAppMessage(cleanNumber, reply);
         }
         return res.status(200).send("CLAIMS");
@@ -266,7 +293,17 @@ exports.receiveMessage = async (req, res) => {
     return res.status(200).send("AI_RESPONSE");
 
   } catch (err) {
-    console.error("CRITICAL ERROR:", err);
+    console.error("CRITICAL ERROR IN WEBHOOK:", err);
+    try {
+        const entry = req.body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+        const rawFrom = String(entry?.from || req.body?.from || req.body?.sender || "");
+        if (rawFrom && rawFrom !== "undefined") {
+            const cleanNumber = rawFrom.replace("@s.whatsapp.net", "").replace("+", "").trim();
+            await sendWhatsAppMessage(cleanNumber, `⚠️ *System Error*\n\nOops! Something went wrong on our end.\nError: ${err.message}\n\nPlease type MENU to restart.`);
+        }
+    } catch (replyErr) {
+        console.error("Failed to send error reply:", replyErr);
+    }
     res.status(500).send("Internal Error");
   }
 };
