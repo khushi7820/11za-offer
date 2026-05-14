@@ -11,6 +11,7 @@ async function updateDatabase() {
     console.log("Please run this SQL in your Supabase SQL Editor:");
     console.log(`
         ALTER TABLE coupon_claims ADD COLUMN IF NOT EXISTS claim_status TEXT DEFAULT 'pending';
+        ALTER TABLE coupon_claims ADD COLUMN IF NOT EXISTS redeemed_by_vendor UUID REFERENCES vendors(id);
         UPDATE coupon_claims SET claim_status = 'redeemed' WHERE redeemed = true;
         UPDATE coupon_claims SET claim_status = 'pending' WHERE redeemed = false;
     `);

@@ -216,7 +216,7 @@ exports.createOffer = async (req, res) => {
                     validity_start,
                     validity_end,
                     terms_conditions,
-                    wallet_deduction_amount,
+                    wallet_deduction_amount: wallet_deduction_amount || 5, // Default deduction for customer
                     city,
                     offer_code: offerCode,
                     offer_status: 'Active'
@@ -456,7 +456,7 @@ exports.redeemWhatsAppCoupon = async (req, res) => {
     }
 };
 
-// Get all claimed coupons for a vendor (waiting for redemption)
+// Get all claimed coupons for a vendor (history & active)
 exports.getVendorClaims = async (req, res) => {
     try {
         const { vendor_id } = req.params;
@@ -469,6 +469,8 @@ exports.getVendorClaims = async (req, res) => {
                 mobile_number,
                 redeemed,
                 created_at,
+                redeemed_at,
+                claim_status,
                 vendor_id,
                 offer_id
             `)
@@ -477,15 +479,32 @@ exports.getVendorClaims = async (req, res) => {
 
         if (error) throw error;
 
+        // Fetch offer titles manually since there is no FK
+        const offerIds = [...new Set(data.map(c => c.offer_id))];
+        let offerMap = {};
+        if (offerIds.length > 0) {
+            const { data: offersData } = await supabase
+                .from('offers')
+                .select('id, offer_title')
+                .in('id', offerIds);
+            
+            if (offersData) {
+                offersData.forEach(o => {
+                    offerMap[o.id] = o.offer_title;
+                });
+            }
+        }
+
         res.json({
             success: true,
             claims: data.map(item => ({
                 id: item.id,
                 coupon_code: item.coupon_code,
                 customer_mobile: item.mobile_number,
-                offer_title: item.offers?.offer_title,
-                status: item.redeemed ? 'Redeemed' : 'Claimed',
-                claimed_at: item.created_at
+                offer_title: offerMap[item.offer_id] || 'Unknown Offer',
+                status: item.claim_status || (item.redeemed ? 'redeemed' : 'pending'),
+                claimed_at: item.created_at,
+                redeemed_at: item.redeemed_at
             }))
         });
     } catch (err) {

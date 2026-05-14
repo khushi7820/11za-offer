@@ -5,16 +5,18 @@ const supabase = require('../config/supabaseClient');
  */
 exports.redeemCoupon = async ({ coupon_code, vendor_id }) => {
     try {
-        console.log(`Processing redemption for Vendor: ${vendor_id}, Coupon: ${coupon_code}`);
+        const normalizedCode = coupon_code?.trim();
+        console.log(`Processing redemption for Vendor: ${vendor_id}, Coupon: ${normalizedCode}`);
 
-        // 1. Fetch Coupon Claim
+        // 1. Fetch Coupon Claim (Case-insensitive check)
         const { data: claim, error: claimError } = await supabase
             .from("coupon_claims")
             .select("*")
-            .eq("coupon_code", coupon_code)
+            .ilike("coupon_code", normalizedCode)
             .maybeSingle();
 
         if (claimError || !claim) {
+            console.log(`Coupon not found or error: ${normalizedCode}`);
             return { success: false, message: "Invalid Coupon Code ❌" };
         }
 
@@ -57,6 +59,7 @@ exports.redeemCoupon = async ({ coupon_code, vendor_id }) => {
             .update({
                 redeemed: true,
                 redeemed_at: new Date().toISOString(),
+                redeemed_by_vendor: vendor_id,
                 claim_status: 'redeemed'
             })
             .eq("id", claim.id);

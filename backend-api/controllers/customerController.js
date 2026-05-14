@@ -166,29 +166,47 @@ exports.getMyCoupons = async (req, res) => {
     try {
         const { customer_id } = req.params;
 
-        const { data, error } = await supabase
+        const { data: claims, error } = await supabase
             .from('coupon_claims')
-            .select('*, offers(*, vendors(*))')
+            .select('*')
             .eq('customer_id', customer_id)
-            .order('claimed_at', { ascending: false });
+            .order('created_at', { ascending: false });
 
         if (error) {
-            return res.status(400).json({
-                success: false,
-                message: error.message
-            });
+            return res.status(400).json({ success: false, message: error.message });
         }
 
-        res.json({
-            success: true,
-            coupons: data
-        });
+        const offerIds = [...new Set(claims.map(c => c.offer_id))];
+        const vendorIds = [...new Set(claims.map(c => c.vendor_id))];
+        
+        let offersMap = {};
+        let vendorsMap = {};
+
+        if (offerIds.length > 0) {
+            const { data: offersData } = await supabase.from('offers').select('id, offer_title').in('id', offerIds);
+            offersData?.forEach(o => offersMap[o.id] = o.offer_title);
+        }
+
+        if (vendorIds.length > 0) {
+            const { data: vendorsData } = await supabase.from('vendors').select('id, business_name').in('id', vendorIds);
+            vendorsData?.forEach(v => vendorsMap[v.id] = v.business_name);
+        }
+
+        const formatted = claims.map(c => ({
+            id: c.id,
+            coupon_code: c.coupon_code,
+            offer_title: offersMap[c.offer_id] || 'Unknown Offer',
+            vendor_name: vendorsMap[c.vendor_id] || 'Unknown Vendor',
+            claim_status: c.claim_status || (c.redeemed ? 'redeemed' : 'pending'),
+            claimed_at: c.created_at,
+            redeemed_at: c.redeemed_at,
+            expiry_status: c.claim_status === 'expired' ? 'Expired' : 'Active'
+        }));
+
+        res.json({ success: true, coupons: formatted });
 
     } catch (err) {
-        res.status(500).json({
-            success: false,
-            message: err.message
-        });
+        res.status(500).json({ success: false, message: err.message });
     }
 };
 
