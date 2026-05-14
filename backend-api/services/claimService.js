@@ -85,6 +85,25 @@ exports.processClaim = async ({ customer_id, offer_id, mobile_number }) => {
             throw new Error("Failed to save coupon claim");
         }
 
+        // 6. Vendor Notification (Non-blocking)
+        const vendorId = offer.vendor_id || offer.vendors?.id;
+        supabase.from("vendor_notifications").insert([{
+            vendor_id: vendorId,
+            title: "New Offer Claim",
+            message: `${mobile_number} claimed ${offer.offer_title}`,
+            coupon_code: couponCode
+        }]).then(({ error }) => {
+            if (error) console.error("Vendor notification error:", error.message);
+        });
+
+        console.log(`
+NEW CLAIM ALERT
+Customer: ${mobile_number}
+Offer: ${offer.offer_title}
+Coupon: ${couponCode}
+Vendor: ${offer.vendors?.business_name}
+`);
+
         return {
             success: true,
             message: "Offer claimed successfully!",

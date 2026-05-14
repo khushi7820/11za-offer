@@ -303,8 +303,8 @@ exports.dashboardStats = async (req, res) => {
 
         const { data: claims } = await supabase
             .from('coupon_claims')
-            .select('id, redeemed, offers!inner(vendor_id)')
-            .eq('offers.vendor_id', vendor_id);
+            .select('id, redeemed, mobile_number')
+            .eq('vendor_id', vendor_id);
 
         const totalOffers = offers ? offers.length : 0;
         const activeOffers = offers ? offers.filter(o => o.offer_status === 'Active').length : 0;
@@ -312,7 +312,7 @@ exports.dashboardStats = async (req, res) => {
         const claimsReceived = claims ? claims.length : 0;
         
         // Customer Engagement: Unique customers who claimed
-        const uniqueCustomers = claims ? new Set(claims.map(c => c.mobile_number)).size : 0;
+        const uniqueCustomers = claims ? new Set(claims.map(c => c.mobile_number).filter(Boolean)).size : 0;
 
         res.json({
             success: true,
@@ -502,13 +502,10 @@ exports.getVendorClaims = async (req, res) => {
                 mobile_number,
                 redeemed,
                 created_at,
-                offers!inner (
-                    id,
-                    offer_title,
-                    vendor_id
-                )
+                vendor_id,
+                offer_id
             `)
-            .eq('offers.vendor_id', vendor_id)
+            .eq('vendor_id', vendor_id)
             .order('created_at', { ascending: false });
 
         if (error) throw error;
@@ -524,6 +521,22 @@ exports.getVendorClaims = async (req, res) => {
                 claimed_at: item.created_at
             }))
         });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+exports.getVendorNotifications = async (req, res) => {
+    try {
+        const { vendor_id } = req.params;
+        const { data, error } = await supabase
+            .from('vendor_notifications')
+            .select('*')
+            .eq('vendor_id', vendor_id)
+            .order('created_at', { ascending: false })
+            .limit(20);
+        if (error) throw error;
+        res.json({ success: true, notifications: data });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }

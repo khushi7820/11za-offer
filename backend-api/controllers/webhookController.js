@@ -45,13 +45,13 @@ exports.receiveMessage = async (req, res) => {
 
     // 2. ONBOARDING (HIGHEST PRIORITY)
     if (!freshUser.onboarding_completed) {
-        if (currentStep === 'awaiting_name') {
-            await updateUser(cleanNumber, { customer_name: text.trim(), current_step: 'awaiting_city' });
+        if (currentStep === 'wait_name') {
+            await updateUser(cleanNumber, { customer_name: text.trim(), current_step: 'wait_city' });
             await sendWhatsAppMessage(cleanNumber, "Which city are you from? 📍");
             return res.status(200).send("ONBOARDING_CITY");
-        } else if (currentStep === 'awaiting_city') {
+        } else if (currentStep === 'wait_city') {
             // 1. Use AI to extract clean city name
-            const extractCityPrompt = `User said: "${text}". Extract ONLY the city name mentioned. If no city is mentioned, return the original text. Return only the city name, nothing else.`;
+            const extractCityPrompt = `User said: "${text}". Extract ONLY the city name mentioned. If no city is mentioned, return the original text. Return only the city name, nothing else. No punctuation, no "The city is", just the name.`;
             let city = await generateAIResponse(extractCityPrompt, "System");
             city = city.replace(/[.!?]/g, "").trim();
 
@@ -65,7 +65,7 @@ exports.receiveMessage = async (req, res) => {
             return res.status(200).send("ONBOARDING_DONE");
         } else {
             await sendWhatsAppMessage(cleanNumber, "Welcome to 11za 🎉\nWhat is your name? 😊");
-            await updateUser(cleanNumber, { current_step: 'awaiting_name' });
+            await updateUser(cleanNumber, { current_step: 'wait_name' });
             return res.status(200).send("ONBOARDING_START");
         }
     }
@@ -74,7 +74,7 @@ exports.receiveMessage = async (req, res) => {
     const menuKeywords = ['menu', 'hi', 'hello', 'reset', 'hey', 'hii', 'help', 'options', 'start'];
     if (menuKeywords.includes(lowerMessage)) {
         if (lowerMessage === 'reset') {
-            await updateUser(cleanNumber, { onboarding_completed: false, current_step: 'awaiting_name', customer_name: null, city: null });
+            await updateUser(cleanNumber, { onboarding_completed: false, current_step: 'wait_name', customer_name: null, city: null });
             await sendWhatsAppMessage(cleanNumber, "Welcome to 11za 🎉\nWhat is your name? 😊");
             return res.status(200).send("RESET");
         }
@@ -85,13 +85,14 @@ exports.receiveMessage = async (req, res) => {
     }
 
     // 4. CONFIRMING CLAIM (TOP PRIORITY STATE)
-    if (currentStep.startsWith('confirming_claim:')) {
+    if (currentStep.startsWith('conf_claim:')) {
         console.log(`[DEBUG] Handling confirmation for msg: "${lowerMessage}"`);
         if (lowerMessage === 'yes' || lowerMessage === 'confirm') {
             const offerId = currentStep.split(':')[1];
             const claimResult = await claimService.processClaim({ customer_id: freshUser.customer_id, offer_id: offerId, mobile_number: cleanNumber });
             if (claimResult.success) {
-                await sendWhatsAppMessage(cleanNumber, `✅ *Offer claimed successfully!*\n\n🎁 Offer: ${claimResult.offerTitle}\n🏪 Shop: ${claimResult.vendorName}\n🎟 Code: *${claimResult.couponCode}*\n\nVisit the shop and show your mobile number to redeem this offer. 😊`);
+                const successMsg = `✅ *Offer claimed successfully!*\n\n🎁 Offer: ${claimResult.offerTitle}\n🏪 Shop: ${claimResult.vendorName}\n\nEnjoy your offer! 😊`;
+                await sendWhatsAppMessage(cleanNumber, successMsg);
             } else {
                 await sendWhatsAppMessage(cleanNumber, `⚠️ ${claimResult.message}`);
             }
@@ -108,10 +109,17 @@ exports.receiveMessage = async (req, res) => {
     }
 
     // 5. PICKING OFFER
-    if (currentStep.startsWith('picking_offer:')) {
+    if (currentStep.startsWith('pick_off:')) {
         const selectedCategory = currentStep.split(':')[1];
-        const { data: allOffers } = await supabase.from("offers").select(`id, offer_title, wallet_deduction_amount, vendors!inner (business_category)`).eq("offer_status", "Active").ilike("city", `%${userCity}%`);
-        const offers = allOffers?.filter(o => o.vendors?.business_category?.trim().toLowerCase() === selectedCategory.toLowerCase()) || [];
+        // 1. Fetch offers for the user's city
+        const { data: cityOffers } = await supabase.from("offers").select("*").eq("offer_status", "Active").ilike("city", `%${userCity}%`);
+        
+        // 2. Fetch vendor IDs for the selected category
+        const { data: categoryVendors } = await supabase.from("vendors").select("id").ilike("business_category", `%${selectedCategory}%`);
+        const vendorIds = categoryVendors?.map(v => v.id) || [];
+
+        // 3. Filter offers by the matching vendor IDs
+        const offers = cityOffers?.filter(o => vendorIds.includes(o.vendor_id)) || [];
         
         let selectedOffer = null;
         if (!isNaN(text.trim())) {
@@ -125,15 +133,31 @@ exports.receiveMessage = async (req, res) => {
             return res.status(200).send("INVALID_OFFER_SILENT");
         }
 
-        await updateUser(cleanNumber, { current_step: `confirming_claim:${selectedOffer.id}` });
-        await sendWhatsAppMessage(cleanNumber, `📢 *Confirm Claim?*\n\n🎁 Offer: ${selectedOffer.offer_title}\n💰 Wallet Deduction: ₹${selectedOffer.wallet_deduction_amount}\n\nReply *YES* to confirm!`);
+        // Check wallet balance before confirming
+        const { data: wallet } = await supabase.from("wallets").select("balance").eq("customer_id", freshUser.customer_id).maybeSingle();
+        const currentBalance = wallet?.balance || 0;
+        const requiredAmount = selectedOffer.wallet_deduction_amount || 0;
+
+        if (currentBalance < requiredAmount) {
+            await sendWhatsAppMessage(cleanNumber, `⚠️ *Insufficient Balance*\n\nYour balance: ₹${currentBalance}\nRequired: ₹${requiredAmount}\n\nType WALLET to check your transactions.`);
+            await updateUser(cleanNumber, { current_step: 'completed' });
+            return res.status(200).send("INSUFFICIENT_BALANCE");
+        }
+
+        await updateUser(cleanNumber, { current_step: `conf_claim:${selectedOffer.id}` });
+        await sendWhatsAppMessage(cleanNumber, `📢 *Confirm Claim?*\n\n🎁 Offer: ${selectedOffer.offer_title}\n💰 Wallet Deduction: ₹${requiredAmount}\n\nReply *YES* to confirm!`);
         return res.status(200).send("CONFIRM_SENT");
     }
 
     // 6. PICKING CATEGORY
-    if (currentStep === 'picking_category') {
-        const { data: activeOffers } = await supabase.from("offers").select("vendors!inner(business_category)").eq("offer_status", "Active").ilike("city", `%${userCity}%`);
-        const uniqueCategories = [...new Set(activeOffers?.map(o => o.vendors?.business_category?.trim().toUpperCase()).filter(Boolean) || [])].sort();
+    if (currentStep === 'pick_cat') {
+        // 1. Get vendor IDs for active offers in the city
+        const { data: cityOffers } = await supabase.from("offers").select("vendor_id").eq("offer_status", "Active").ilike("city", `%${userCity}%`);
+        const cityVendorIds = [...new Set(cityOffers?.map(o => o.vendor_id) || [])];
+
+        // 2. Get unique categories for those vendors
+        const { data: vendors } = await supabase.from("vendors").select("business_category").in("id", cityVendorIds);
+        const uniqueCategories = [...new Set(vendors?.map(v => v.business_category?.trim().toUpperCase()).filter(Boolean) || [])].sort();
         let selectedCat = text.trim();
 
         if (!isNaN(selectedCat)) {
@@ -144,8 +168,11 @@ exports.receiveMessage = async (req, res) => {
             if (matched) selectedCat = matched;
         }
 
-        const { data: offers } = await supabase.from("offers").select(`id, offer_title, offer_description, discount_type, discount_value, vendors!inner(business_name, business_category)`).eq("offer_status", "Active").ilike("city", `%${userCity}%`);
-        const filteredOffers = offers?.filter(o => o.vendors?.business_category?.trim().toLowerCase() === selectedCat.toLowerCase()) || [];
+        const { data: allOffers } = await supabase.from("offers").select("*").eq("offer_status", "Active").ilike("city", `%${userCity}%`);
+        const { data: matchingVendors } = await supabase.from("vendors").select("id, business_name").ilike("business_category", `%${selectedCat}%`);
+        const vendorMap = matchingVendors?.reduce((acc, v) => ({ ...acc, [v.id]: v.business_name }), {}) || {};
+        
+        const filteredOffers = allOffers?.filter(o => vendorMap[o.vendor_id]).map(o => ({ ...o, vendors: { business_name: vendorMap[o.vendor_id] } })) || [];
 
         if (filteredOffers.length === 0) {
             await sendWhatsAppMessage(cleanNumber, `Sorry, no offers in "${selectedCat}" found. Type MENU.`);
@@ -160,13 +187,13 @@ exports.receiveMessage = async (req, res) => {
         });
         reply += `Reply with offer *number*!`;
         await sendWhatsAppMessage(cleanNumber, reply);
-        await updateUser(cleanNumber, { current_step: `picking_offer:${selectedCat}` });
+        await updateUser(cleanNumber, { current_step: `pick_off:${selectedCat}` });
         return res.status(200).send("OFFER_LIST_SENT");
     }
 
     // 7. AWAITING NEW CITY
-    if (currentStep === 'awaiting_new_city') {
-        const extractCityPrompt = `User said: "${text}". Extract ONLY the city name mentioned. Return only the city name, nothing else.`;
+    if (currentStep === 'wait_new_city') {
+        const extractCityPrompt = `User said: "${text}". Extract ONLY the city name mentioned. Return only the city name, nothing else. No punctuation, no "The city is", just the name.`;
         let newCity = await generateAIResponse(extractCityPrompt, "System");
         newCity = newCity.replace(/[.!?]/g, "").trim();
 
@@ -184,23 +211,27 @@ exports.receiveMessage = async (req, res) => {
         categories.forEach((cat, i) => { reply += `${i + 1}. ${cat}\n`; });
         reply += `\nReply with category!`;
         await sendWhatsAppMessage(cleanNumber, reply);
-        await updateUser(cleanNumber, { current_step: 'picking_category' });
+        await updateUser(cleanNumber, { current_step: 'pick_cat' });
         return res.status(200).send("CITY_CHANGED");
     }
 
     // 8. FALLBACK KEYWORDS (OFFERS, WALLET, CLAIMS)
     if (lowerMessage === 'offers' || lowerMessage === '1' || lowerMessage === 'categories' || lowerMessage === '3') {
-        const { data: activeOffers } = await supabase.from("offers").select(`vendors!inner (business_category)`).eq("offer_status", "Active").ilike("city", `%${userCity}%`);
-        if (!activeOffers || activeOffers.length === 0) {
+        const { data: cityOffers } = await supabase.from("offers").select("vendor_id").eq("offer_status", "Active").ilike("city", `%${userCity}%`);
+        const cityVendorIds = [...new Set(cityOffers?.map(o => o.vendor_id) || [])];
+
+        const { data: vendors } = await supabase.from("vendors").select("business_category").in("id", cityVendorIds);
+        const categories = [...new Set(vendors?.map(v => v.business_category?.trim().toUpperCase()).filter(Boolean) || [])].sort();
+
+        if (categories.length === 0) {
             await sendWhatsAppMessage(cleanNumber, `No offers in ${userCity} yet.`);
             return res.status(200).send("NO_OFFERS_START");
         }
-        const categories = [...new Set(activeOffers.map(o => o.vendors?.business_category?.trim().toUpperCase()).filter(Boolean))].sort();
         let reply = `📂 *Categories in ${userCity}:*\n\n`;
         categories.forEach((cat, i) => { reply += `${i + 1}. ${cat}\n`; });
         reply += `\nReply with category!`;
         await sendWhatsAppMessage(cleanNumber, reply);
-        await updateUser(cleanNumber, { current_step: 'picking_category' });
+        await updateUser(cleanNumber, { current_step: 'pick_cat' });
         return res.status(200).send("CATEGORIES_START");
     }
 
@@ -225,7 +256,7 @@ exports.receiveMessage = async (req, res) => {
     const changeCityKeywords = ['change city', 'update city', 'edit city', 'set city'];
     if (changeCityKeywords.some(k => lowerMessage.includes(k))) {
         await sendWhatsAppMessage(cleanNumber, "Which city would you like? 📍");
-        await updateUser(cleanNumber, { current_step: 'awaiting_new_city' });
+        await updateUser(cleanNumber, { current_step: 'wait_new_city' });
         return res.status(200).send("AWAITING_CITY");
     }
 

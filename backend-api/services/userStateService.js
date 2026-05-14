@@ -19,7 +19,7 @@ const getOrCreateUser = async (phone_number) => {
             .from('whatsapp_users')
             .insert([{ 
                 phone_number: phoneNumberStr, 
-                current_step: 'awaiting_name' 
+                current_step: 'wait_name' 
             }])
             .select()
             .single();

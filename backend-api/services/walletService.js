@@ -22,7 +22,12 @@ exports.addTransaction = async ({ customer_id, amount, type, description, refere
 
         const balance_after = balance_before + parseFloat(amount);
 
-        // 2. Update or Create Wallet
+        // 2. Check for insufficient balance if deducting
+        if (amount < 0 && balance_after < 0) {
+            return { success: false, message: "Insufficient wallet balance 💰" };
+        }
+
+        // 3. Update or Create Wallet
         const { error: walletError } = await supabase
             .from('wallets')
             .upsert({ 

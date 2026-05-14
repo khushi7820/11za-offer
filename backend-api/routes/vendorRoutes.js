@@ -20,5 +20,6 @@ router.delete('/delete-offer/:id', vendorController.deleteOffer);
 router.put('/update-offer/:id', vendorController.updateOffer);
 router.get('/activity/:vendor_id', vendorController.getVendorActivity);
 router.get('/claims/:vendor_id', vendorController.getVendorClaims);
+router.get('/notifications/:vendor_id', vendorController.getVendorNotifications);
 
 module.exports = router;

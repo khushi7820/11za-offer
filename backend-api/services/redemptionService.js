@@ -7,25 +7,30 @@ exports.redeemCoupon = async ({ coupon_code, vendor_id }) => {
     try {
         console.log(`Processing redemption for Vendor: ${vendor_id}, Coupon: ${coupon_code}`);
 
-        // 1. Fetch Coupon Claim with Offer details
+        // 1. Fetch Coupon Claim
         const { data: claim, error: claimError } = await supabase
             .from("coupon_claims")
-            .select(`
-                *,
-                offers (
-                    id,
-                    vendor_id,
-                    offer_title,
-                    validity_end,
-                    offer_status
-                )
-            `)
+            .select("*")
             .eq("coupon_code", coupon_code)
             .maybeSingle();
 
         if (claimError || !claim) {
             return { success: false, message: "Invalid Coupon Code ❌" };
         }
+
+        // 1b. Fetch Offer Details separately (to bypass missing FK relationship)
+        const { data: offer, error: offerError } = await supabase
+            .from("offers")
+            .select("id, vendor_id, offer_title, validity_end, offer_status")
+            .eq("id", claim.offer_id)
+            .maybeSingle();
+
+        if (offerError || !offer) {
+            return { success: false, message: "Associated offer not found ❌" };
+        }
+
+        // Add offer details to claim object for existing logic
+        claim.offers = offer;
 
         // 2. Security Check: Belongs to this vendor?
         const offerVendorId = claim.offers?.vendor_id;
