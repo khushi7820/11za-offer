@@ -8,8 +8,24 @@
   ],
   "routes": [
     {
-      "src": "/(.*)",
+      "src": "/webhook",
       "dest": "backend-api/server.js"
+    },
+    {
+      "src": "/webhook/(.*)",
+      "dest": "backend-api/server.js"
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "backend-api/server.js"
+    },
+    {
+      "src": "/",
+      "dest": "backend-api/server.js"
+    },
+    {
+      "src": "/static/(.*)",
+      "dest": "/static/$1"
     }
   ]
 }
