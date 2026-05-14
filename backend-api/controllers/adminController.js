@@ -141,9 +141,23 @@ exports.getDashboardStats = async (req, res) => {
 
 exports.getAllCustomers = async (req, res) => {
     try {
-        const { data, error } = await supabase.from('customers').select('*').order('joined_at', { ascending: false });
+        const { data, error } = await supabase
+            .from('customers')
+            .select(`
+                *,
+                wallets (balance)
+            `)
+            .order('joined_at', { ascending: false });
+
         if (error) throw error;
-        res.json({ success: true, customers: data });
+
+        // Flatten the data so frontend gets wallet_balance correctly
+        const formattedData = data.map(c => ({
+            ...c,
+            wallet_balance: c.wallets?.[0]?.balance || c.wallet_balance || 0
+        }));
+
+        res.json({ success: true, customers: formattedData });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
