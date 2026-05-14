@@ -141,7 +141,7 @@ exports.getDashboardStats = async (req, res) => {
 
 exports.getAllCustomers = async (req, res) => {
     try {
-        const { data, error } = await supabase.from('customers').select('*').order('created_at', { ascending: false });
+        const { data, error } = await supabase.from('customers').select('*').order('joined_at', { ascending: false });
         if (error) throw error;
         res.json({ success: true, customers: data });
     } catch (err) {
@@ -151,7 +151,7 @@ exports.getAllCustomers = async (req, res) => {
 
 exports.getAllClaims = async (req, res) => {
     try {
-        const { data, error } = await supabase.from('coupon_claims').select('*, vendors(business_name), offers(offer_title)').order('created_at', { ascending: false });
+        const { data, error } = await supabase.from('coupon_claims').select('*, vendors(business_name), offers(offer_title)').order('claimed_at', { ascending: false });
         if (error) throw error;
         res.json({ success: true, claims: data });
     } catch (err) {
@@ -196,7 +196,7 @@ exports.getSystemActivity = async (req, res) => {
         const { data: claims } = await supabase
             .from('coupon_claims')
             .select('*, offers(offer_title, vendors(business_name))')
-            .order('created_at', { ascending: false })
+            .order('claimed_at', { ascending: false })
             .limit(50);
 
         const { data: transactions } = await supabase

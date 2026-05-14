@@ -468,14 +468,14 @@ exports.getVendorClaims = async (req, res) => {
                 coupon_code,
                 mobile_number,
                 redeemed,
-                created_at,
+                claimed_at,
                 redeemed_at,
                 claim_status,
                 vendor_id,
                 offer_id
             `)
             .eq('vendor_id', vendor_id)
-            .order('created_at', { ascending: false });
+            .order('claimed_at', { ascending: false });
 
         if (error) throw error;
 
@@ -503,7 +503,7 @@ exports.getVendorClaims = async (req, res) => {
                 customer_mobile: item.mobile_number,
                 offer_title: offerMap[item.offer_id] || 'Unknown Offer',
                 status: item.claim_status || (item.redeemed ? 'redeemed' : 'pending'),
-                claimed_at: item.created_at,
+                claimed_at: item.claimed_at,
                 redeemed_at: item.redeemed_at
             }))
         });
