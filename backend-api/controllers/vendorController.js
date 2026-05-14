@@ -283,46 +283,13 @@ exports.getVendorOffers = async (req, res) => {
     }
 };
 
+const analyticsService = require('../services/analyticsService');
+
 exports.dashboardStats = async (req, res) => {
     try {
         const { vendor_id } = req.params;
-        const today = new Date().toISOString().split('T')[0];
-
-        // Auto expire offers before getting stats
-        await supabase
-            .from('offers')
-            .update({ offer_status: 'Expired' })
-            .lt('validity_end', today)
-            .neq('offer_status', 'Expired')
-            .eq('vendor_id', vendor_id);
-
-        const { data: offers } = await supabase
-            .from('offers')
-            .select('*')
-            .eq('vendor_id', vendor_id);
-
-        const { data: claims } = await supabase
-            .from('coupon_claims')
-            .select('id, redeemed, mobile_number')
-            .eq('vendor_id', vendor_id);
-
-        const totalOffers = offers ? offers.length : 0;
-        const activeOffers = offers ? offers.filter(o => o.offer_status === 'Active').length : 0;
-        const couponsRedeemed = claims ? claims.filter(c => c.redeemed === true).length : 0;
-        const claimsReceived = claims ? claims.length : 0;
-        
-        // Customer Engagement: Unique customers who claimed
-        const uniqueCustomers = claims ? new Set(claims.map(c => c.mobile_number).filter(Boolean)).size : 0;
-
-        res.json({
-            success: true,
-            totalOffers,
-            activeOffers,
-            claimsReceived,
-            couponsRedeemed,
-            customerEngagement: uniqueCustomers
-        });
-
+        const stats = await analyticsService.getVendorStats(vendor_id);
+        res.json(stats);
     } catch (err) {
         res.status(500).json({
             success: false,

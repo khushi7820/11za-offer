@@ -190,4 +190,20 @@ exports.getMyCoupons = async (req, res) => {
             message: err.message
         });
     }
+};
+
+const analyticsService = require('../services/analyticsService');
+
+exports.getCustomerStats = async (req, res) => {
+    try {
+        const { customer_id } = req.params;
+        
+        // Need mobile number for accurate claim tracking
+        const { data: customer } = await supabase.from('customers').select('mobile_number').eq('id', customer_id).single();
+        
+        const stats = await analyticsService.getCustomerStats(customer_id, customer?.mobile_number);
+        res.json(stats);
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
 };

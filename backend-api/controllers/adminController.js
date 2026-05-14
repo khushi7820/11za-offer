@@ -139,6 +139,26 @@ exports.getDashboardStats = async (req, res) => {
     }
 };
 
+exports.getAllCustomers = async (req, res) => {
+    try {
+        const { data, error } = await supabase.from('customers').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        res.json({ success: true, customers: data });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+exports.getAllClaims = async (req, res) => {
+    try {
+        const { data, error } = await supabase.from('coupon_claims').select('*, vendors(business_name), offers(offer_title)').order('created_at', { ascending: false });
+        if (error) throw error;
+        res.json({ success: true, claims: data });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
 // Admin Controls
 exports.toggleVendorStatus = async (req, res) => {
     try {

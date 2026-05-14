@@ -15,5 +15,6 @@ router.use(authorizeRoles('customer', 'admin'));
 router.get('/browse-offers', customerController.browseOffers);
 router.post('/claim-coupon', claimController.claimOffer);
 router.get('/my-coupons/:customer_id', customerController.getMyCoupons);
+router.get('/stats/:customer_id', customerController.getCustomerStats);
 
 module.exports = router;

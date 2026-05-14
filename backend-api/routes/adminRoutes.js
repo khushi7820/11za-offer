@@ -12,6 +12,8 @@ router.use(authorizeRoles('admin'));
 
 // Vendor Management
 router.get('/all-vendors', adminController.getAllVendors);
+router.get('/all-customers', adminController.getAllCustomers);
+router.get('/all-claims', adminController.getAllClaims);
 router.post('/approve-vendor', adminController.approveVendor);
 router.post('/reject-vendor', adminController.rejectVendor);
 router.post('/toggle-vendor-status', adminController.toggleVendorStatus);
