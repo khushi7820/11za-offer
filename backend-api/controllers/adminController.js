@@ -141,20 +141,21 @@ exports.getDashboardStats = async (req, res) => {
 
 exports.getAllCustomers = async (req, res) => {
     try {
-        const { data, error } = await supabase
+        const { data: customers, error: cError } = await supabase
             .from('customers')
-            .select(`
-                *,
-                wallets (balance)
-            `)
+            .select('*')
             .order('joined_at', { ascending: false });
 
-        if (error) throw error;
+        if (cError) throw cError;
 
-        // Flatten the data so frontend gets wallet_balance correctly
-        const formattedData = data.map(c => ({
+        // Fetch all wallets to merge balances
+        const { data: wallets } = await supabase.from('wallets').select('customer_id, balance');
+
+        const walletMap = wallets?.reduce((acc, w) => ({ ...acc, [w.customer_id]: w.balance }), {}) || {};
+
+        const formattedData = customers.map(c => ({
             ...c,
-            wallet_balance: c.wallets?.[0]?.balance || c.wallet_balance || 0
+            wallet_balance: walletMap[c.id] || 0
         }));
 
         res.json({ success: true, customers: formattedData });
