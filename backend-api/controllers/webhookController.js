@@ -311,7 +311,20 @@ exports.receiveMessage = async (req, res) => {
     }
 
     // 9. AI FALLBACK
-    const aiReply = await generateAIResponse(text, customerName);
+    // Fetch categories first to provide context to AI
+    const { data: cityOfferCats } = await supabase
+        .from("offers")
+        .select("vendors!inner (business_category)")
+        .eq("offer_status", "Active")
+        .ilike("city", `%${userCity}%`);
+
+    const availableCats = [...new Set(cityOfferCats?.map(o => o.vendors?.business_category?.trim().toUpperCase()).filter(Boolean) || [])].sort();
+
+    const aiReply = await generateAIResponse(text, customerName, { 
+        city: userCity, 
+        categories: availableCats 
+    });
+
     await sendWhatsAppMessage(cleanNumber, aiReply || "Type MENU to see options! 😊");
     return res.status(200).send("AI_RESPONSE");
 

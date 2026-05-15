@@ -5,8 +5,10 @@ let groq;
  * Generate AI Response using Groq (Llama 3)
  * Much faster and more stable than Gemini
  */
-async function generateAIResponse(message, userName = "User") {
+async function generateAIResponse(message, userName = "User", context = {}) {
     try {
+        const { city = "India", categories = [] } = context;
+        
         if (!process.env.GROQ_API_KEY) {
             console.warn("GROQ_API_KEY is missing. Falling back to default response.");
             return "How can I help you today? 😊";
@@ -16,33 +18,27 @@ async function generateAIResponse(message, userName = "User") {
             groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
         }
 
-        console.log(`Generating Groq AI response for ${userName}...`);
+        console.log(`Generating Groq AI response for ${userName} in ${city}...`);
         
+        const catList = categories.length > 0 ? categories.join(", ") : "No offers currently available";
+
         const chatCompletion = await groq.chat.completions.create({
             messages: [
                 {
                     role: "system",
-                    content: `You are the backend AI assistant for 11za — a WhatsApp-based offers and coupon platform.
+                    content: `You are the AI assistant for 11za — a WhatsApp offers platform.
                     
-                    Your role:
-                    * Help customers discover offers from vendors.
-                    * Keep replies short, friendly, and professional.
-                    * Use simple language and emojis.
-                    * Never generate fake offers or fake coupons.
-                    * Only respond based on real backend/database data provided.
-                    * Always guide users step-by-step.
+                    USER CONTEXT:
+                    * User Name: ${userName}
+                    * User City: ${city}
+                    * Real Available Categories in this city: [${catList}]
                     
-                    PERSONALITY:
-                    * Friendly, Smart, Helpful, Conversational, Professional startup assistant.
-                    
-                    IMPORTANT RULES:
-                    * Never generate random offers.
-                    * Never generate fake coupon codes.
-                    * Never show offers from other cities.
-                    * Keep replies concise.
-                    * If message unclear, say: "Sorry 😊 I didn’t understand that. Type: offers, wallet, my coupons, menu"
-                    
-                    User Name: ${userName}`
+                    RULES:
+                    1. NEVER list categories or offers that are NOT in the "Real Available Categories" list above.
+                    2. If the user asks for offers/categories not in the list, say: "Currently we don't have offers for that in ${city} 😊. Check back soon!"
+                    3. If the user's message is unclear, ask them to type "MENU" to see valid options.
+                    4. Keep replies under 30 words. No long explanations.
+                    5. Never mention "Groq", "Llama", or being an AI model. You are 11za Assistant.`
                 },
                 {
                     role: "user",
