@@ -540,13 +540,13 @@ exports.getVendorClaims = async (req, res) => {
         if (error) throw error;
 
         // Fetch offer titles manually since there is no FK
-        const offerIds = [...new Set(data.map(c => c.offer_id))];
+        const claimedOfferIds = [...new Set(data.map(c => c.offer_id))];
         let offerMap = {};
-        if (offerIds.length > 0) {
+        if (claimedOfferIds.length > 0) {
             const { data: offersData } = await supabase
                 .from('offers')
                 .select('id, offer_title')
-                .in('id', offerIds);
+                .in('id', claimedOfferIds);
             
             if (offersData) {
                 offersData.forEach(o => {
