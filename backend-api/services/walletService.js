@@ -24,6 +24,21 @@ exports.addTransaction = async ({ customer_id, amount, type, description, refere
 
         // 2. Check for insufficient balance if deducting
         if (amount < 0 && balance_after < 0) {
+            // Notify Admins (Non-blocking)
+            const notificationService = require('./notificationService');
+            supabase.from('admins').select('id').then(({ data: admins }) => {
+                if (admins) {
+                    admins.forEach(admin => {
+                        notificationService.createNotification(
+                            admin.id,
+                            'admin',
+                            'Failed Wallet Transaction',
+                            `Customer ${customer_id} tried to deduct ₹${Math.abs(amount)} but has insufficient balance (Current: ₹${balance_before}).`,
+                            'system'
+                        );
+                    });
+                }
+            });
             return { success: false, message: "Insufficient wallet balance 💰" };
         }
 
@@ -53,6 +68,21 @@ exports.addTransaction = async ({ customer_id, amount, type, description, refere
             }]);
 
         if (ledgerError) throw ledgerError;
+
+        // 4. Notification (Non-blocking)
+        const notificationService = require('./notificationService');
+        const isDeduction = amount < 0;
+        const absAmount = Math.abs(amount);
+        
+        notificationService.createNotification(
+            customer_id,
+            'customer',
+            isDeduction ? 'Wallet Deduction' : 'Cashback Received',
+            isDeduction 
+                ? `₹${absAmount} deducted from wallet for ${description}`
+                : `₹${absAmount} added to your wallet!`,
+            'wallet'
+        );
 
         return { success: true, balance_after };
 

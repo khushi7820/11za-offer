@@ -82,6 +82,16 @@ exports.approveVendor = async (req, res) => {
             });
         }
 
+        // Notification (Non-blocking)
+        const notificationService = require('../services/notificationService');
+        notificationService.createNotification(
+            vendor_id,
+            'vendor',
+            'Application Approved',
+            'Congratulations! Your vendor application has been approved. You can now create offers.',
+            'approval'
+        );
+
         res.json({
             success: true,
             message: 'Vendor Approved Successfully',
@@ -113,6 +123,16 @@ exports.rejectVendor = async (req, res) => {
                 message: error.message
             });
         }
+
+        // Notification (Non-blocking)
+        const notificationService = require('../services/notificationService');
+        notificationService.createNotification(
+            vendor_id,
+            'vendor',
+            'Application Rejected',
+            'We regret to inform you that your vendor application has been rejected. Please contact support for details.',
+            'rejection'
+        );
 
         res.json({
             success: true,
@@ -166,9 +186,27 @@ exports.getAllCustomers = async (req, res) => {
 
 exports.getAllClaims = async (req, res) => {
     try {
-        const { data, error } = await supabase.from('coupon_claims').select('*, vendors(business_name), offers(offer_title)').order('claimed_at', { ascending: false });
+        const { data, error } = await supabase
+            .from('coupon_claims')
+            .select(`
+                *,
+                vendors (business_name),
+                offers (
+                    offer_title,
+                    vendors (business_name)
+                )
+            `)
+            .order('claimed_at', { ascending: false });
+
         if (error) throw error;
-        res.json({ success: true, claims: data });
+
+        // Ensure vendor name is picked from either source
+        const formattedClaims = data.map(c => ({
+            ...c,
+            vendor_name: c.vendors?.business_name || c.offers?.vendors?.business_name || 'N/A'
+        }));
+
+        res.json({ success: true, claims: formattedClaims });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }

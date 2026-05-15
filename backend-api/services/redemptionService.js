@@ -68,6 +68,29 @@ exports.redeemCoupon = async ({ coupon_code, vendor_id }) => {
             throw new Error("Failed to update coupon status");
         }
 
+        // 6. Notifications (Non-blocking)
+        const notificationService = require('./notificationService');
+        
+        // Vendor Notification
+        notificationService.createNotification(
+            vendor_id,
+            'vendor',
+            'Coupon Redeemed Successfully',
+            `Coupon for "${claim.offers?.offer_title}" has been redeemed for customer ${claim.mobile_number}.`,
+            'redeem'
+        );
+
+        // Customer Notification
+        if (claim.customer_id) {
+            notificationService.createNotification(
+                claim.customer_id,
+                'customer',
+                'Coupon Redeemed',
+                `Your coupon for "${claim.offers?.offer_title}" has been successfully redeemed by the vendor.`,
+                'redeem'
+            );
+        }
+
         return {
             success: true,
             message: "Coupon Redeemed Successfully ✅",

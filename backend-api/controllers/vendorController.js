@@ -94,6 +94,23 @@ exports.vendorSignup = async (req, res) => {
             });
         }
 
+        // Notify Admins (Non-blocking)
+        const notificationService = require('../services/notificationService');
+        // Fetch all admins to notify
+        supabase.from('admins').select('id').then(({ data: admins }) => {
+            if (admins) {
+                admins.forEach(admin => {
+                    notificationService.createNotification(
+                        admin.id,
+                        'admin',
+                        'New Vendor Registration',
+                        `A new vendor "${business_name}" has registered and is waiting for approval.`,
+                        'system'
+                    );
+                });
+            }
+        });
+
         res.json({
             success: true,
             message: 'Vendor Registered Successfully. Waiting For Admin Approval.',
