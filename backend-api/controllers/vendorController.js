@@ -94,22 +94,25 @@ exports.vendorSignup = async (req, res) => {
             });
         }
 
-        // Notify Admins (Non-blocking)
+        // Notify Admins (Non-blocking but reliable)
         const notificationService = require('../services/notificationService');
-        // Fetch all admins to notify
-        supabase.from('admins').select('id').then(({ data: admins }) => {
-            if (admins) {
-                admins.forEach(admin => {
-                    notificationService.createNotification(
+        try {
+            const { data: admins } = await supabase.from('admins').select('id');
+            if (admins && admins.length > 0) {
+                for (const admin of admins) {
+                    await notificationService.createNotification(
                         admin.id,
                         'admin',
                         'New Vendor Registration',
                         `A new vendor "${business_name}" has registered and is waiting for approval.`,
                         'system'
                     );
-                });
+                }
+                console.log(`Admin notifications created for ${admins.length} admins.`);
             }
-        });
+        } catch (notifErr) {
+            console.error("Error creating admin notification:", notifErr);
+        }
 
         res.json({
             success: true,
