@@ -163,8 +163,20 @@ exports.receiveMessage = async (req, res) => {
             return res.status(200).send("INSUFFICIENT_BALANCE");
         }
 
+        const discountStr = selectedOffer.discount_type?.toLowerCase() === 'flat' ? `₹${selectedOffer.discount_value} OFF` : selectedOffer.discount_type?.toLowerCase() === 'percentage' ? `${selectedOffer.discount_value}% OFF` : selectedOffer.discount_value;
+
         await updateUser(cleanNumber, { current_step: `conf_claim:${selectedOffer.id}` });
-        await sendWhatsAppMessage(cleanNumber, `📢 *Confirm Claim?*\n\n🎁 Offer: ${selectedOffer.offer_title}\n💰 Wallet Deduction: ₹${requiredAmount}\n\nReply *YES* to confirm!`);
+        
+        const confMsg = `📢 *Confirm Claim?*\n\n` +
+            `🔥 *${selectedOffer.offer_title}*\n` +
+            `📝 ${selectedOffer.offer_description || 'No description'}\n` +
+            `💰 *Discount:* ${discountStr}\n` +
+            `🗓️ *Valid Till:* ${selectedOffer.validity_end ? new Date(selectedOffer.validity_end).toLocaleDateString() : 'N/A'}\n\n` +
+            `📜 *Terms:* ${selectedOffer.terms_conditions || 'Standard T&C apply'}\n` +
+            `💸 *Wallet Deduction:* ₹${requiredAmount}\n\n` +
+            `Reply *YES* to confirm and get your coupon code! 🚀`;
+
+        await sendWhatsAppMessage(cleanNumber, confMsg);
         return res.status(200).send("CONFIRM_SENT");
     }
 
