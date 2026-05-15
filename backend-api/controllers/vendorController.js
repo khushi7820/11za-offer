@@ -272,6 +272,29 @@ exports.createOffer = async (req, res) => {
             message: 'Offer Created Successfully',
             offer: data
         });
+
+        // Broadcast to customers in the same city (Non-blocking)
+        const { sendWhatsAppMessage } = require('../services/whatsappService');
+        try {
+            const { data: cityCustomers } = await supabase
+                .from('customers')
+                .select('mobile_number')
+                .ilike('city', `%${city}%`);
+
+            if (cityCustomers && cityCustomers.length > 0) {
+                const broadcastMsg = `🎁 *New Offer in ${city}!*\n\n🔥 *${offer_title}*\n📝 ${offer_description}\n\nType *OFFERS* to browse and claim it now! 🚀`;
+                
+                // Send to each customer (non-blocking loop)
+                cityCustomers.forEach(customer => {
+                    if (customer.mobile_number) {
+                        sendWhatsAppMessage(customer.mobile_number, broadcastMsg);
+                    }
+                });
+                console.log(`[BROADCAST] Sent new offer alert to ${cityCustomers.length} customers in ${city}`);
+            }
+        } catch (broadcastErr) {
+            console.error("[BROADCAST ERROR]", broadcastErr);
+        }
     } catch (err) {
         res.status(500).json({
             success: false,

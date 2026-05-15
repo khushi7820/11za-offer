@@ -85,29 +85,35 @@ exports.processClaim = async ({ customer_id, offer_id, mobile_number }) => {
             throw new Error("Failed to save coupon claim");
         }
 
-        // 6. Notifications (Non-blocking)
+        // 6. Notifications (Reliable)
         const notificationService = require('./notificationService');
-        const vendorId = offer.vendor_id || offer.vendors?.id;
+        const vendorId = offer.vendor_id || (offer.vendors && offer.vendors.id);
 
-        // Customer Notification
-        if (customer_id) {
-            notificationService.createNotification(
-                customer_id,
-                'customer',
-                'Offer Claimed Successfully',
-                `You have claimed "${offer.offer_title}". Your coupon code is ${couponCode}.`,
-                'claim'
-            );
+        try {
+            // Customer Notification
+            if (customer_id) {
+                await notificationService.createNotification(
+                    customer_id,
+                    'customer',
+                    'Offer Claimed Successfully',
+                    `You have claimed "${offer.offer_title}". Your coupon code is ${couponCode}.`,
+                    'claim'
+                );
+            }
+
+            // Vendor Notification
+            if (vendorId) {
+                await notificationService.createNotification(
+                    vendorId,
+                    'vendor',
+                    'New Coupon Claim',
+                    `A customer (${mobile_number}) has claimed your offer: ${offer.offer_title}.`,
+                    'claim'
+                );
+            }
+        } catch (notifErr) {
+            console.error("Notification trigger error:", notifErr);
         }
-
-        // Vendor Notification
-        notificationService.createNotification(
-            vendorId,
-            'vendor',
-            'New Coupon Claim',
-            `A customer (${mobile_number}) has claimed your offer: ${offer.offer_title}.`,
-            'claim'
-        );
 
         console.log(`
 NEW CLAIM ALERT
