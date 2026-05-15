@@ -154,6 +154,22 @@ exports.vendorLogin = async (req, res) => {
         }
 
         if (vendor.approval_status !== 'Approved') {
+            // Notify Admins about Login Attempt (Non-blocking)
+            const notificationService = require('../services/notificationService');
+            supabase.from('admins').select('id').then(({ data: admins }) => {
+                if (admins) {
+                    admins.forEach(admin => {
+                        notificationService.createNotification(
+                            admin.id,
+                            'admin',
+                            'Pending Vendor Login Attempt',
+                            `Vendor "${vendor.business_name}" is trying to login but status is: ${vendor.approval_status}`,
+                            'system'
+                        );
+                    });
+                }
+            });
+
             return res.status(403).json({
                 success: false,
                 message: 'Vendor Waiting For Admin Approval'

@@ -46,6 +46,7 @@ exports.getNotifications = async (userId, userType, limit = 20, page = 1) => {
             .select('*', { count: 'exact' })
             .eq('user_id', userId.toString())
             .eq('user_type', userType)
+            .eq('is_read', false) // Only fetch unread notifications
             .order('created_at', { ascending: false })
             .range(from, to);
 
