@@ -520,21 +520,22 @@ exports.getVendorClaims = async (req, res) => {
     try {
         const { vendor_id } = req.params;
 
-        const { data, error } = await supabase
-            .from('coupon_claims')
-            .select(`
-                id,
-                coupon_code,
-                mobile_number,
-                redeemed,
-                claimed_at,
-                redeemed_at,
-                claim_status,
-                vendor_id,
-                offer_id
-            `)
-            .eq('vendor_id', vendor_id)
-            .order('claimed_at', { ascending: false });
+        // 1. Get all offer IDs for this vendor
+        const { data: vendorOffers } = await supabase.from('offers').select('id').eq('vendor_id', vendor_id);
+        const offerIds = vendorOffers?.map(o => o.id) || [];
+
+        // 2. Query claims matching vendor_id OR offer_ids
+        let query = supabase.from('coupon_claims').select(`
+            id, coupon_code, mobile_number, redeemed, claimed_at, redeemed_at, claim_status, vendor_id, offer_id
+        `);
+
+        if (offerIds.length > 0) {
+            query = query.or(`vendor_id.eq.${vendor_id},offer_id.in.(${offerIds.join(',')})`);
+        } else {
+            query = query.eq('vendor_id', vendor_id);
+        }
+
+        const { data, error } = await query.order('claimed_at', { ascending: false });
 
         if (error) throw error;
 
@@ -574,14 +575,17 @@ exports.getVendorClaims = async (req, res) => {
 exports.getVendorNotifications = async (req, res) => {
     try {
         const { vendor_id } = req.params;
-        const { data, error } = await supabase
-            .from('vendor_notifications')
-            .select('*')
-            .eq('vendor_id', vendor_id)
-            .order('created_at', { ascending: false })
-            .limit(20);
-        if (error) throw error;
-        res.json({ success: true, notifications: data });
+        const notificationService = require('../services/notificationService');
+        
+        // Use the unified notification service - show ALL (read + unread) for the list
+        const result = await notificationService.getNotifications(vendor_id, 'vendor', 20, 1, false);
+        
+        if (!result.success) throw new Error(result.error);
+        
+        res.json({ 
+            success: true, 
+            notifications: result.data 
+        });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }

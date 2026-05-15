@@ -36,17 +36,22 @@ exports.createNotification = async (userId, userType, title, message, type) => {
 /**
  * Get notifications for a user
  */
-exports.getNotifications = async (userId, userType, limit = 20, page = 1) => {
+exports.getNotifications = async (userId, userType, limit = 20, page = 1, unreadOnly = false) => {
     try {
         const from = (page - 1) * limit;
         const to = from + limit - 1;
 
-        const { data, error, count } = await supabase
+        let query = supabase
             .from('notifications')
             .select('*', { count: 'exact' })
             .eq('user_id', userId.toString())
-            .eq('user_type', userType)
-            .eq('is_read', false) // Only fetch unread notifications
+            .eq('user_type', userType);
+        
+        if (unreadOnly) {
+            query = query.eq('is_read', false);
+        }
+
+        const { data, error, count } = await query
             .order('created_at', { ascending: false })
             .range(from, to);
 
