@@ -284,13 +284,13 @@ exports.createOffer = async (req, res) => {
             if (cityCustomers && cityCustomers.length > 0) {
                 const broadcastMsg = `🎁 *New Offer in ${city}!*\n\n🔥 *${offer_title}*\n📝 ${offer_description}\n\nType *OFFERS* to browse and claim it now! 🚀`;
                 
-                // Send to each customer (non-blocking loop)
-                cityCustomers.forEach(customer => {
-                    if (customer.mobile_number) {
-                        sendWhatsAppMessage(customer.mobile_number, broadcastMsg);
-                    }
+                // Get unique mobile numbers to avoid duplicates
+                const uniqueNumbers = [...new Set(cityCustomers.map(c => c.mobile_number).filter(n => n))];
+
+                uniqueNumbers.forEach(phoneNumber => {
+                    sendWhatsAppMessage(phoneNumber, broadcastMsg);
                 });
-                console.log(`[BROADCAST] Sent new offer alert to ${cityCustomers.length} customers in ${city}`);
+                console.log(`[BROADCAST] Sent new offer alert to ${uniqueNumbers.length} unique customers in ${city}`);
             }
         } catch (broadcastErr) {
             console.error("[BROADCAST ERROR]", broadcastErr);
