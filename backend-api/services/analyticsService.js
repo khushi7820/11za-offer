@@ -66,9 +66,22 @@ exports.getVendorStats = async (vendorId) => {
         const { data: vendorOffers } = await supabase.from('offers').select('id, offer_title').eq('vendor_id', vendorId);
         const offerIds = vendorOffers?.map(o => o.id) || [];
 
-        // 2. Claims & Redemptions (Using vendor_id for accuracy)
-        const { count: claimsReceived } = await supabase.from('coupon_claims').select('*', { count: 'exact', head: true }).eq('vendor_id', vendorId);
-        const { count: redeemedCoupons } = await supabase.from('coupon_claims').select('*', { count: 'exact', head: true }).eq('vendor_id', vendorId).eq('redeemed', true);
+        // 2. Claims & Redemptions (Using both vendor_id and offer_ids for legacy data compatibility)
+        let claimsQuery = supabase.from('coupon_claims').select('*', { count: 'exact', head: true });
+        let redeemedQuery = supabase.from('coupon_claims').select('*', { count: 'exact', head: true }).eq('redeemed', true);
+
+        if (offerIds.length > 0) {
+            const orCondition = `vendor_id.eq.${vendorId},offer_id.in.(${offerIds.join(',')})`;
+            claimsQuery = claimsQuery.or(orCondition);
+            redeemedQuery = redeemedQuery.or(orCondition);
+        } else {
+            claimsQuery = claimsQuery.eq('vendor_id', vendorId);
+            redeemedQuery = redeemedQuery.eq('vendor_id', vendorId);
+        }
+
+        const { count: claimsReceived } = await claimsQuery;
+        const { count: redeemedCoupons } = await redeemedQuery;
+        
         const { count: activeOffers } = await supabase.from('offers').select('*', { count: 'exact', head: true }).eq('vendor_id', vendorId).eq('offer_status', 'Active');
 
         return {
