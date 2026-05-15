@@ -128,6 +128,11 @@ Vendor: ${offer.vendors?.business_name}
             message: "Offer claimed successfully!",
             couponCode,
             offerTitle: offer.offer_title,
+            offerDescription: offer.offer_description,
+            validityEnd: offer.validity_end,
+            terms: offer.terms_conditions,
+            discountValue: offer.discount_value,
+            discountType: offer.discount_type,
             vendorName: offer.vendors?.business_name,
             deductionAmount
         };

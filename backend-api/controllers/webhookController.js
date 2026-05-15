@@ -97,7 +97,20 @@ exports.receiveMessage = async (req, res) => {
             const offerId = currentStep.split(':')[1];
             const claimResult = await claimService.processClaim({ customer_id: freshUser.customer_id, offer_id: offerId, mobile_number: cleanNumber });
             if (claimResult.success) {
-                const successMsg = `✅ *Offer claimed successfully!*\n\n🎁 Offer: ${claimResult.offerTitle}\n🏪 Shop: ${claimResult.vendorName}\n\nEnjoy your offer! 😊`;
+                const { offerTitle, vendorName, couponCode, offerDescription, validityEnd, terms, discountValue, discountType } = claimResult;
+                const discountStr = discountType?.toLowerCase() === 'flat' ? `₹${discountValue} OFF` : discountType?.toLowerCase() === 'percentage' ? `${discountValue}% OFF` : discountValue;
+                
+                const successMsg = `✅ *Offer claimed successfully!*\n\n` +
+                    `🔥 *${offerTitle}*\n` +
+                    `📝 ${offerDescription || 'No description'}\n` +
+                    `💰 *Discount:* ${discountStr}\n` +
+                    `🏪 *Shop:* ${vendorName}\n` +
+                    `🗓️ *Valid Till:* ${validityEnd ? new Date(validityEnd).toLocaleDateString() : 'N/A'}\n\n` +
+                    `📜 *Terms:* ${terms || 'Standard T&C apply'}\n\n` +
+                    `🎫 *Your Coupon Code:*\n` +
+                    `*${couponCode}*\n\n` +
+                    `Show this code at the shop to redeem! Enjoy! 😊`;
+
                 await sendWhatsAppMessage(cleanNumber, successMsg);
             } else {
                 await sendWhatsAppMessage(cleanNumber, `⚠️ ${claimResult.message}`);
