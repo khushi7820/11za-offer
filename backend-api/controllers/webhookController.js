@@ -107,7 +107,7 @@ exports.receiveMessage = async (req, res) => {
                     `🏪 *Shop:* ${vendorName}\n` +
                     `🗓️ *Valid Till:* ${validityEnd ? new Date(validityEnd).toLocaleDateString() : 'N/A'}\n\n` +
                     `📜 *Terms:* ${terms || 'Standard T&C apply'}\n\n` +
-                    `Go to the shop and provide your *Mobile Number* to redeem this offer! Enjoy! 😊`;
+                    `Thank you for choosing 11za! Visit the shop and enjoy your special offer. 😊`;
 
                 await sendWhatsAppMessage(cleanNumber, successMsg);
             } else {
