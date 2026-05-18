@@ -281,10 +281,19 @@ exports.receiveMessage = async (req, res) => {
     }
 
     if (lowerMessage === 'my claims' || lowerMessage === '4') {
+        // 1. Check if name or city is missing, if so, restart onboarding
+        if (!freshUser.customer_name || !freshUser.city) {
+            await sendWhatsAppMessage(cleanNumber, "Welcome to 11za 🎉\nWhat is your name? 😊");
+            await updateUser(cleanNumber, { current_step: 'wait_name', onboarding_completed: false });
+            return res.status(200).send("ONBOARDING_RESTART");
+        }
+
         const { data: claims, error } = await supabase.from("coupon_claims").select("*").eq("mobile_number", cleanNumber);
         
+        let header = `👤 *Name:* ${customerName}\n📍 *City:* ${userCity}\n\n`;
+
         if (error || !claims || claims.length === 0) {
-            await sendWhatsAppMessage(cleanNumber, "No claims yet.");
+            await sendWhatsAppMessage(cleanNumber, header + "No claims yet.");
         } else {
             // Fetch offers and vendors manually
             const offerIds = [...new Set(claims.map(c => c.offer_id))];
@@ -302,7 +311,7 @@ exports.receiveMessage = async (req, res) => {
                 vendorsData?.forEach(v => vendorsMap[v.id] = v.business_name);
             }
 
-            let reply = `🎟 *Your Coupons:*\n\n`;
+            let reply = header + `🎟 *Your Coupons:*\n\n`;
             claims.forEach((c) => { 
                 const offerTitle = offersMap[c.offer_id] || 'Unknown Offer';
                 const vendorName = vendorsMap[c.vendor_id] || 'Unknown Vendor';
