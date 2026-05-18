@@ -222,6 +222,38 @@ exports.receiveMessage = async (req, res) => {
             return res.status(200).send("NO_CATEGORY_OFFERS");
         }
 
+        if (filteredOffers.length === 1) {
+            const selectedOffer = filteredOffers[0];
+            
+            // Check wallet balance before confirming
+            const { data: wallet } = await supabase.from("wallets").select("balance").eq("customer_id", freshUser.customer_id).maybeSingle();
+            const currentBalance = wallet?.balance || 0;
+            const requiredAmount = selectedOffer.wallet_deduction_amount || 0;
+
+            if (currentBalance < requiredAmount) {
+                await sendWhatsAppMessage(cleanNumber, `⚠️ *Insufficient Balance*\n\nYour balance: ₹${currentBalance}\nRequired: ₹${requiredAmount}\n\nType WALLET to check your transactions.`);
+                await updateUser(cleanNumber, { current_step: 'completed' });
+                return res.status(200).send("INSUFFICIENT_BALANCE");
+            }
+
+            const discountStr = selectedOffer.discount_type?.toLowerCase() === 'flat' ? `₹${selectedOffer.discount_value} OFF` : selectedOffer.discount_type?.toLowerCase() === 'percentage' ? `${selectedOffer.discount_value}% OFF` : selectedOffer.discount_value;
+
+            await updateUser(cleanNumber, { current_step: `conf_claim:${selectedOffer.id}` });
+            
+            const confMsg = `📢 *Confirm Claim?*\n\n` +
+                `🔥 *${selectedOffer.offer_title}*\n` +
+                `📝 ${selectedOffer.offer_description || 'No description'}\n` +
+                `💰 *Discount:* ${discountStr}\n` +
+                `🏪 *Shop:* ${selectedOffer.vendors?.business_name || 'Vendor'}\n` +
+                `🗓️ *Valid Till:* ${selectedOffer.validity_end ? new Date(selectedOffer.validity_end).toLocaleDateString() : 'N/A'}\n\n` +
+                `📜 *Terms:* ${selectedOffer.terms_conditions || 'Standard T&C apply'}\n` +
+                `💸 *Wallet Deduction:* ₹${requiredAmount}\n\n` +
+                `Reply *YES* to confirm and get your coupon code! 🚀`;
+
+            await sendWhatsAppMessage(cleanNumber, confMsg);
+            return res.status(200).send("CONFIRM_SENT");
+        }
+
         let reply = `🎁 *${selectedCat} Offers:*\n\n`;
         filteredOffers.forEach((offer, index) => {
             const desc = offer.offer_description || `${offer.discount_value} (${offer.discount_type})`;
