@@ -240,7 +240,7 @@ exports.receiveMessage = async (req, res) => {
 
             await updateUser(cleanNumber, { current_step: `conf_claim:${selectedOffer.id}` });
             
-            const confMsg = `📢 *Confirm Claim?*\n\n` +
+            const confMsg = `📢 *Only 1 offer found! Do you want this offer?*\n\n` +
                 `🔥 *${selectedOffer.offer_title}*\n` +
                 `📝 ${selectedOffer.offer_description || 'No description'}\n` +
                 `💰 *Discount:* ${discountStr}\n` +
