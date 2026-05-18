@@ -185,7 +185,7 @@ exports.receiveMessage = async (req, res) => {
             `🗓️ *Valid Till:* ${selectedOffer.validity_end ? new Date(selectedOffer.validity_end).toLocaleDateString() : 'N/A'}\n\n` +
             `📜 *Terms:* ${selectedOffer.terms_conditions || 'Standard T&C apply'}\n` +
             `💸 *Wallet Deduction:* ₹${requiredAmount}\n\n` +
-            `Reply *YES* to confirm and get your coupon code! 🚀`;
+            `Reply *YES* to confirm your claim! 🚀`;
 
         await sendWhatsAppMessage(cleanNumber, confMsg);
         return res.status(200).send("CONFIRM_SENT");
@@ -248,7 +248,7 @@ exports.receiveMessage = async (req, res) => {
                 `🗓️ *Valid Till:* ${selectedOffer.validity_end ? new Date(selectedOffer.validity_end).toLocaleDateString() : 'N/A'}\n\n` +
                 `📜 *Terms:* ${selectedOffer.terms_conditions || 'Standard T&C apply'}\n` +
                 `💸 *Wallet Deduction:* ₹${requiredAmount}\n\n` +
-                `Reply *YES* to confirm and get your coupon code! 🚀`;
+                `Reply *YES* to confirm your claim! 🚀`;
 
             await sendWhatsAppMessage(cleanNumber, confMsg);
             return res.status(200).send("CONFIRM_SENT");
@@ -351,7 +351,7 @@ exports.receiveMessage = async (req, res) => {
                 vendorsData?.forEach(v => vendorsMap[v.id] = v.business_name);
             }
 
-            let reply = header + `🎟 *Your Coupons:*\n\n`;
+            let reply = header + `🎟 *Your Claims:*\n\n`;
             claims.forEach((c) => { 
                 const offerTitle = offersMap[c.offer_id] || 'Unknown Offer';
                 const vendorName = vendorsMap[c.vendor_id] || 'Unknown Vendor';
@@ -367,8 +367,8 @@ exports.receiveMessage = async (req, res) => {
             `Need assistance? We are here to guide you!\n\n` +
             `1️⃣ *How to Claim Offers:*\n` +
             `Type *MENU* ➡️ select *1* (Offers) or *3* (Categories) ➡️ choose a category ➡️ reply with the offer number to claim.\n\n` +
-            `2️⃣ *How to Redeem a Coupon:*\n` +
-            `Once claimed, visit the vendor store and show your *Coupon Code* from *My Claims* (Option 4). They will verify and redeem it.\n\n` +
+            `2️⃣ *How to Redeem your Offer:*\n` +
+            `Once claimed, visit the vendor store and tell them your registered *Mobile Number*. The vendor will verify your claim on their app and give you the discount.\n\n` +
             `3️⃣ *How to check Wallet Balance:*\n` +
             `Type *2* or *WALLET* to check your current balance.\n\n` +
             `4️⃣ *Change your City:*\n` +
