@@ -57,9 +57,14 @@ exports.receiveMessage = async (req, res) => {
             return res.status(200).send("ONBOARDING_CITY");
         } else if (currentStep === 'wait_city') {
             // 1. Use AI to extract clean city name
-            const extractCityPrompt = `User said: "${text}". Extract ONLY the city name mentioned. If no city is mentioned, return the original text. Return only the city name, nothing else. No punctuation, no "The city is", just the name.`;
+            const extractCityPrompt = `User said: "${text}". Extract ONLY the valid Indian city name mentioned. If the input is NOT a real city in India, you MUST reply with exactly the word: INVALID. Return ONLY the city name or INVALID, nothing else. No punctuation.`;
             let city = await generateAIResponse(extractCityPrompt, "System");
             city = city.replace(/[.!?]/g, "").trim();
+
+            if (city.toUpperCase() === 'INVALID') {
+                await sendWhatsAppMessage(cleanNumber, "Please enter a valid city name in India. 📍");
+                return res.status(200).send("INVALID_CITY");
+            }
 
             // 2. Create Customer record
             const { data: customer, error: customerError } = await supabase.from("customers").insert([{ customer_name: freshUser.customer_name, mobile_number: cleanNumber, city: city }]).select().single();
@@ -77,7 +82,7 @@ exports.receiveMessage = async (req, res) => {
     }
 
     // 3. MENU KEYWORDS / RESET
-    const menuKeywords = ['menu', 'hi', 'hello', 'reset', 'hey', 'hii', 'help', 'options', 'start'];
+    const menuKeywords = ['menu', 'hi', 'hello', 'reset', 'hey', 'hii', 'options', 'start'];
     if (menuKeywords.includes(lowerMessage)) {
         if (lowerMessage === 'reset') {
             await updateUser(cleanNumber, { onboarding_completed: false, current_step: 'wait_name', customer_name: null, city: null });
@@ -222,9 +227,14 @@ exports.receiveMessage = async (req, res) => {
 
     // 7. AWAITING NEW CITY
     if (currentStep === 'wait_new_city') {
-        const extractCityPrompt = `User said: "${text}". Extract ONLY the city name mentioned. Return only the city name, nothing else. No punctuation, no "The city is", just the name.`;
+        const extractCityPrompt = `User said: "${text}". Extract ONLY the valid Indian city name mentioned. If the input is NOT a real city in India, you MUST reply with exactly the word: INVALID. Return ONLY the city name or INVALID, nothing else. No punctuation.`;
         let newCity = await generateAIResponse(extractCityPrompt, "System");
         newCity = newCity.replace(/[.!?]/g, "").trim();
+
+        if (newCity.toUpperCase() === 'INVALID') {
+            await sendWhatsAppMessage(cleanNumber, "Please enter a valid city name in India. 📍");
+            return res.status(200).send("INVALID_CITY");
+        }
 
         await updateUser(cleanNumber, { city: newCity, current_step: 'completed' });
         if (freshUser.customer_id) await supabase.from("customers").update({ city: newCity }).eq("id", freshUser.customer_id);
@@ -301,6 +311,24 @@ exports.receiveMessage = async (req, res) => {
             await sendWhatsAppMessage(cleanNumber, reply);
         }
         return res.status(200).send("CLAIMS");
+    }
+
+    if (lowerMessage === 'help' || lowerMessage === '5' || lowerMessage === 'support') {
+        const helpMsg = `🤝 *11za Help & Support* 📞\n\n` +
+            `Need assistance? We are here to guide you!\n\n` +
+            `1️⃣ *How to Claim Offers:*\n` +
+            `Type *MENU* ➡️ select *1* (Offers) or *3* (Categories) ➡️ choose a category ➡️ reply with the offer number to claim.\n\n` +
+            `2️⃣ *How to Redeem a Coupon:*\n` +
+            `Once claimed, visit the vendor store and show your *Coupon Code* from *My Claims* (Option 4). They will verify and redeem it.\n\n` +
+            `3️⃣ *How to check Wallet Balance:*\n` +
+            `Type *2* or *WALLET* to check your current balance.\n\n` +
+            `4️⃣ *Change your City:*\n` +
+            `Type *change city* anytime to view offers in a different location.\n\n` +
+            `📧 *Contact Us:*\n` +
+            `For any other queries, feel free to write to us at *support@11za.com*.\n\n` +
+            `Type *MENU* to return to the main menu. 😊`;
+        await sendWhatsAppMessage(cleanNumber, helpMsg);
+        return res.status(200).send("HELP_SENT");
     }
 
     const changeCityKeywords = ['change city', 'update city', 'edit city', 'set city'];

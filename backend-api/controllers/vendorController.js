@@ -273,24 +273,40 @@ exports.createOffer = async (req, res) => {
             offer: data
         });
 
-        // Broadcast to customers in the same city (Non-blocking)
+        // Broadcast to customers in the same city ONLY (Non-blocking)
         const { sendWhatsAppMessage } = require('../services/whatsappService');
         try {
-            const { data: cityCustomers } = await supabase
-                .from('customers')
-                .select('mobile_number')
-                .ilike('city', `%${city}%`);
+            // STRICT GUARD: Only broadcast if city is a valid non-empty string
+            if (!city || city.trim().length < 2) {
+                console.log('[BROADCAST] Skipped: offer city is empty or invalid.');
+            } else {
+                const cityTrimmed = city.trim().toLowerCase();
 
-            if (cityCustomers && cityCustomers.length > 0) {
-                const broadcastMsg = `🎁 *New Offer in ${city}!*\n\n🔥 *${offer_title}*\n📝 ${offer_description}\n\nType *OFFERS* to browse and claim it now! 🚀`;
-                
-                // Get unique mobile numbers to avoid duplicates
-                const uniqueNumbers = [...new Set(cityCustomers.map(c => c.mobile_number).filter(n => n))];
+                // Fetch ALL customers and filter by city match (case-insensitive, exact word)
+                const { data: allCustomers } = await supabase
+                    .from('customers')
+                    .select('mobile_number, city')
+                    .not('city', 'is', null)
+                    .not('mobile_number', 'is', null);
 
-                uniqueNumbers.forEach(phoneNumber => {
-                    sendWhatsAppMessage(phoneNumber, broadcastMsg);
-                });
-                console.log(`[BROADCAST] Sent new offer alert to ${uniqueNumbers.length} unique customers in ${city}`);
+                // Filter strictly: customer city must match offer city exactly
+                const cityCustomers = (allCustomers || []).filter(c =>
+                    c.city && c.city.trim().toLowerCase() === cityTrimmed
+                );
+
+                if (cityCustomers.length > 0) {
+                    const broadcastMsg = `🎁 *New Offer in ${city}!*\n\n🔥 *${offer_title}*\n📝 ${offer_description}\n\nType *OFFERS* to browse and claim it now! 🚀`;
+                    
+                    // Get unique mobile numbers to avoid duplicates
+                    const uniqueNumbers = [...new Set(cityCustomers.map(c => c.mobile_number).filter(n => n))];
+
+                    uniqueNumbers.forEach(phoneNumber => {
+                        sendWhatsAppMessage(phoneNumber, broadcastMsg);
+                    });
+                    console.log(`[BROADCAST] ✅ Sent to ${uniqueNumbers.length} customers in "${city}" only`);
+                } else {
+                    console.log(`[BROADCAST] No customers found in city: "${city}"`);
+                }
             }
         } catch (broadcastErr) {
             console.error("[BROADCAST ERROR]", broadcastErr);
@@ -347,7 +363,8 @@ const analyticsService = require('../services/analyticsService');
 exports.dashboardStats = async (req, res) => {
     try {
         const { vendor_id } = req.params;
-        const stats = await analyticsService.getVendorStats(vendor_id);
+        const { startDate, endDate } = req.query;
+        const stats = await analyticsService.getVendorStats(vendor_id, startDate, endDate);
         res.json(stats);
     } catch (err) {
         res.status(500).json({
@@ -458,20 +475,39 @@ exports.updateOffer = async (req, res) => {
 exports.getVendorActivity = async (req, res) => {
     try {
         const { vendor_id } = req.params;
+        const { startDate, endDate } = req.query;
 
-        const { data, error } = await supabase
-            .from('transactions')
-            .select(`
-                id,
-                description,
-                transaction_date,
-                amount,
-                transaction_type,
-                customers (customer_name)
-            `)
-            .eq('vendor_id', vendor_id)
-            .order('transaction_date', { ascending: false })
-            .limit(20);
+        // Get all claims strictly marked as redeemed for this vendor
+        let query = supabase
+            .from('coupon_claims')
+            .select('id, mobile_number, coupon_code, redeemed_at, offer_id, vendor_id')
+            .eq('redeemed', true)
+            .not('redeemed_at', 'is', null)
+            .order('redeemed_at', { ascending: false });
+
+        // Add date filters if provided
+        if (startDate && endDate) {
+            let startObj = new Date(startDate); startObj.setUTCHours(0, 0, 0, 0);
+            let endObj = new Date(endDate); endObj.setUTCHours(23, 59, 59, 999);
+            query = query.gte('redeemed_at', startObj.toISOString()).lte('redeemed_at', endObj.toISOString());
+        }
+
+        // We still need to map by offerIds if vendor_id isn't fully reliable in old data
+        const { data: vendorOffers } = await supabase
+            .from('offers')
+            .select('id, offer_title')
+            .eq('vendor_id', vendor_id);
+            
+        const offerIds = vendorOffers?.map(o => o.id) || [];
+        const offerMap = vendorOffers?.reduce((acc, curr) => ({ ...acc, [curr.id]: curr.offer_title }), {}) || {};
+
+        if (offerIds.length > 0) {
+            query = query.or(`vendor_id.eq.${vendor_id},offer_id.in.(${offerIds.join(',')})`);
+        } else {
+            query = query.eq('vendor_id', vendor_id);
+        }
+
+        const { data, error } = await query.limit(20);
 
         if (error) throw error;
 
@@ -479,11 +515,11 @@ exports.getVendorActivity = async (req, res) => {
             success: true,
             activity: data.map(item => ({
                 id: item.id,
-                description: item.description,
-                customer: item.customers?.customer_name || 'Walk-in Customer',
-                time: item.transaction_date,
-                amount: item.amount,
-                type: item.transaction_type
+                description: `Redeemed Coupon for ${offerMap[item.offer_id] || 'Offer'}`,
+                customer: item.mobile_number,
+                time: item.redeemed_at,
+                amount: 0,
+                type: 'Redemption'
             }))
         });
     } catch (err) {
@@ -519,6 +555,7 @@ exports.redeemWhatsAppCoupon = async (req, res) => {
 exports.getVendorClaims = async (req, res) => {
     try {
         const { vendor_id } = req.params;
+        const { startDate, endDate } = req.query;
 
         // 1. Get all offer IDs for this vendor
         const { data: vendorOffers } = await supabase.from('offers').select('id').eq('vendor_id', vendor_id);
@@ -533,6 +570,12 @@ exports.getVendorClaims = async (req, res) => {
             query = query.or(`vendor_id.eq.${vendor_id},offer_id.in.(${offerIds.join(',')})`);
         } else {
             query = query.eq('vendor_id', vendor_id);
+        }
+
+        if (startDate && endDate) {
+            let startObj = new Date(startDate); startObj.setUTCHours(0, 0, 0, 0);
+            let endObj = new Date(endDate); endObj.setUTCHours(23, 59, 59, 999);
+            query = query.gte('claimed_at', startObj.toISOString()).lte('claimed_at', endObj.toISOString());
         }
 
         const { data, error } = await query.order('claimed_at', { ascending: false });

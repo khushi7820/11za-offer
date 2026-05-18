@@ -42,9 +42,16 @@ exports.adminLogin = async (req, res) => {
 
 exports.getAllVendors = async (req, res) => {
     try {
-        const { data, error } = await supabase
-            .from('vendors')
-            .select('*');
+        const { startDate, endDate } = req.query;
+        let query = supabase.from('vendors').select('*');
+        
+        if (startDate && endDate) {
+            let startObj = new Date(startDate); startObj.setUTCHours(0, 0, 0, 0);
+            let endObj = new Date(endDate); endObj.setUTCHours(23, 59, 59, 999);
+            query = query.gte('created_at', startObj.toISOString()).lte('created_at', endObj.toISOString());
+        }
+
+        const { data, error } = await query;
 
         if (error) {
             return res.status(400).json({
@@ -152,7 +159,8 @@ exports.rejectVendor = async (req, res) => {
 // Analytics Endpoints
 exports.getDashboardStats = async (req, res) => {
     try {
-        const stats = await analyticsService.getGlobalStats();
+        const { startDate, endDate } = req.query;
+        const stats = await analyticsService.getGlobalStats(startDate, endDate);
         res.json(stats);
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -161,10 +169,16 @@ exports.getDashboardStats = async (req, res) => {
 
 exports.getAllCustomers = async (req, res) => {
     try {
-        const { data: customers, error: cError } = await supabase
-            .from('customers')
-            .select('*')
-            .order('joined_at', { ascending: false });
+        const { startDate, endDate } = req.query;
+        let query = supabase.from('customers').select('*').order('joined_at', { ascending: false });
+
+        if (startDate && endDate) {
+            let startObj = new Date(startDate); startObj.setUTCHours(0, 0, 0, 0);
+            let endObj = new Date(endDate); endObj.setUTCHours(23, 59, 59, 999);
+            query = query.gte('joined_at', startObj.toISOString()).lte('joined_at', endObj.toISOString());
+        }
+
+        const { data: customers, error: cError } = await query;
 
         if (cError) throw cError;
 
@@ -186,7 +200,8 @@ exports.getAllCustomers = async (req, res) => {
 
 exports.getAllClaims = async (req, res) => {
     try {
-        const { data, error } = await supabase
+        const { startDate, endDate } = req.query;
+        let query = supabase
             .from('coupon_claims')
             .select(`
                 *,
@@ -197,6 +212,14 @@ exports.getAllClaims = async (req, res) => {
                 )
             `)
             .order('claimed_at', { ascending: false });
+
+        if (startDate && endDate) {
+            let startObj = new Date(startDate); startObj.setUTCHours(0, 0, 0, 0);
+            let endObj = new Date(endDate); endObj.setUTCHours(23, 59, 59, 999);
+            query = query.gte('claimed_at', startObj.toISOString()).lte('claimed_at', endObj.toISOString());
+        }
+
+        const { data, error } = await query;
 
         if (error) throw error;
 

@@ -3,7 +3,7 @@ const supabase = require('../config/supabaseClient');
 /**
  * Global Admin Analytics Service
  */
-exports.getGlobalStats = async () => {
+exports.getGlobalStats = async (startDate, endDate) => {
     try {
         // 1. Customer Stats
         const { count: totalCustomers } = await supabase.from('customers').select('*', { count: 'exact', head: true });
@@ -11,6 +11,7 @@ exports.getGlobalStats = async () => {
         const cities = cityData?.map(c => c.city?.trim()?.toUpperCase()).filter(Boolean) || [];
         const cityCounts = cities.reduce((acc, city) => { acc[city] = (acc[city] || 0) + 1; return acc; }, {});
         const topCities = Object.entries(cityCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+        const totalUniqueCities = Object.keys(cityCounts).length;
 
         // 2. Offer Stats
         const { count: totalOffers } = await supabase.from('offers').select('*', { count: 'exact', head: true });
@@ -22,10 +23,24 @@ exports.getGlobalStats = async () => {
         const categories = vendorCats?.map(v => v.business_category?.trim()?.toUpperCase()).filter(Boolean) || [];
         const catCounts = categories.reduce((acc, cat) => { acc[cat] = (acc[cat] || 0) + 1; return acc; }, {});
         const topCategories = Object.entries(catCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+        const totalUniqueCategories = Object.keys(catCounts).length;
         
         // 4. Coupon Stats
-        const { count: totalClaims } = await supabase.from('coupon_claims').select('*', { count: 'exact', head: true });
-        const { count: redeemedCoupons } = await supabase.from('coupon_claims').select('*', { count: 'exact', head: true }).eq('redeemed', true);
+        let claimsQuery = supabase.from('coupon_claims').select('*', { count: 'exact', head: true });
+        let redeemedQuery = supabase.from('coupon_claims').select('*', { count: 'exact', head: true }).eq('redeemed', true);
+        
+        if (startDate && endDate) {
+            let startObj = new Date(startDate);
+            startObj.setUTCHours(0, 0, 0, 0);
+            let endObj = new Date(endDate);
+            endObj.setUTCHours(23, 59, 59, 999);
+            
+            claimsQuery = claimsQuery.gte('claimed_at', startObj.toISOString()).lte('claimed_at', endObj.toISOString());
+            redeemedQuery = redeemedQuery.gte('redeemed_at', startObj.toISOString()).lte('redeemed_at', endObj.toISOString());
+        }
+        
+        const { count: totalClaims } = await claimsQuery;
+        const { count: redeemedCoupons } = await redeemedQuery;
 
         // 5. Wallet Stats
         const { data: walletTransactions } = await supabase.from('wallet_transactions').select('amount, type');
@@ -47,6 +62,8 @@ exports.getGlobalStats = async () => {
                 approvedVendors: approvedVendors || 0,
                 pendingVendors: pendingVendors || 0,
                 rejectedVendors: rejectedVendors || 0,
+                totalUniqueCities,
+                totalUniqueCategories,
                 topCities: topCities.map(([name, count]) => ({ name, count })),
                 topCategories: topCategories.map(([name, count]) => ({ name, count }))
             }
@@ -60,7 +77,7 @@ exports.getGlobalStats = async () => {
 /**
  * Vendor Specific Analytics Service
  */
-exports.getVendorStats = async (vendorId) => {
+exports.getVendorStats = async (vendorId, startDate, endDate) => {
     try {
         // 1. Get all offers for this vendor
         const { data: vendorOffers } = await supabase.from('offers').select('id, offer_title').eq('vendor_id', vendorId);
@@ -79,10 +96,41 @@ exports.getVendorStats = async (vendorId) => {
             redeemedQuery = redeemedQuery.eq('vendor_id', vendorId);
         }
 
+        if (startDate && endDate) {
+            let startObj = new Date(startDate);
+            startObj.setUTCHours(0, 0, 0, 0);
+            let endObj = new Date(endDate);
+            endObj.setUTCHours(23, 59, 59, 999);
+            
+            claimsQuery = claimsQuery.gte('claimed_at', startObj.toISOString()).lte('claimed_at', endObj.toISOString());
+            redeemedQuery = redeemedQuery.gte('redeemed_at', startObj.toISOString()).lte('redeemed_at', endObj.toISOString());
+        }
+
         const { count: claimsReceived } = await claimsQuery;
         const { count: redeemedCoupons } = await redeemedQuery;
         
         const { count: activeOffers } = await supabase.from('offers').select('*', { count: 'exact', head: true }).eq('vendor_id', vendorId).eq('offer_status', 'Active');
+
+        // unique customers
+        let customerQuery = supabase.from('coupon_claims').select('mobile_number');
+        if (offerIds.length > 0) {
+            const orCondition = `vendor_id.eq.${vendorId},offer_id.in.(${offerIds.join(',')})`;
+            customerQuery = customerQuery.or(orCondition);
+        } else {
+            customerQuery = customerQuery.eq('vendor_id', vendorId);
+        }
+        
+        if (startDate && endDate) {
+            let startObj = new Date(startDate);
+            startObj.setUTCHours(0, 0, 0, 0);
+            let endObj = new Date(endDate);
+            endObj.setUTCHours(23, 59, 59, 999);
+            
+            customerQuery = customerQuery.gte('claimed_at', startObj.toISOString()).lte('claimed_at', endObj.toISOString());
+        }
+        
+        const { data: customersData } = await customerQuery;
+        const uniqueCustomers = new Set(customersData?.map(c => c.mobile_number).filter(Boolean)).size;
 
         return {
             success: true,
@@ -90,7 +138,8 @@ exports.getVendorStats = async (vendorId) => {
                 claimsReceived: claimsReceived || 0,
                 redeemedCoupons: redeemedCoupons || 0,
                 activeOffers: activeOffers || 0,
-                pendingRedeems: (claimsReceived || 0) - (redeemedCoupons || 0)
+                pendingRedeems: (claimsReceived || 0) - (redeemedCoupons || 0),
+                uniqueCustomers: uniqueCustomers || 0
             }
         };
     } catch (error) {
