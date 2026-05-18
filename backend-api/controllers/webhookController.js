@@ -52,7 +52,15 @@ exports.receiveMessage = async (req, res) => {
     // 2. ONBOARDING (HIGHEST PRIORITY)
     if (!freshUser.onboarding_completed) {
         if (currentStep === 'wait_name') {
-            await updateUser(cleanNumber, { customer_name: text.trim(), current_step: 'wait_city' });
+            const extractNamePrompt = `User said: "${text}". Extract ONLY the person's real name mentioned. Ignore greeting words or conversational phrases (like hi, hello, my name is, I am, name is, name, naam, mera naam hai, etc.) and return ONLY the clean name with proper capitalization. If no valid name can be extracted, return the input itself. No punctuation.`;
+            let cleanName = await generateAIResponse(extractNamePrompt, "System");
+            cleanName = cleanName.replace(/[.!?]/g, "").trim();
+
+            if (!cleanName) {
+                cleanName = text.trim();
+            }
+
+            await updateUser(cleanNumber, { customer_name: cleanName, current_step: 'wait_city' });
             await sendWhatsAppMessage(cleanNumber, "Which city are you from? 📍");
             return res.status(200).send("ONBOARDING_CITY");
         } else if (currentStep === 'wait_city') {
